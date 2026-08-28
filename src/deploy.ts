@@ -1,14 +1,17 @@
 /**
- * Deploy confidential-evidence-gateway contract to a Midnight network (undeployed by default; use --network preview|preprod for public networks).
+ * Deploy the Confidential Compliance Proof contract to a Midnight network
+ * (undeployed by default; use --network preview|preprod for public networks).
+ *
+ * Deploying publishes exactly one value: the policy threshold
+ * (`publicMinimumScore`). The supplier's actual compliance score is loaded
+ * into the local encrypted private-state store and is never transmitted.
  *
  * Non-interactive: scaffold → npm run setup runs straight through.
  * No readline prompts, no .midnight-seed file.
  */
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+
 import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, recordDeployment } from './network';
 import { createWallet, persistWalletState, unshieldedToken, type WalletContext } from './wallet';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocket } from 'ws';
 import * as Rx from 'rxjs';
 
@@ -18,14 +21,29 @@ import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
-import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+import { loadCompiledContract, isCompiled } from './compiled-contract';
+import {
+  createCompliancePrivateState,
+  parseMinimumScore,
+  PRIVATE_STATE_ID,
+  PRIVATE_STATE_STORE_NAME,
+  zkConfigPath,
+} from './compliance';
 
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
 
-// Identifier under which this contract's private state is stored. The
-// hello-world contract has no witnesses, so its private state is empty ({}).
-const PRIVATE_STATE_ID = 'helloWorldPrivateState';
+// ─── Policy configuration ──────────────────────────────────────────────────────
+//
+// MINIMUM_SCORE is PUBLIC: it becomes ledger field `publicMinimumScore`, and
+// is wrapped in disclose() in the contract because publishing it is the point.
+//
+// COMPLIANCE_SCORE is PRIVATE: the supplier's actual score. It is written to
+// the local encrypted private-state store and fed to the prover as a witness.
+// It is never part of any transaction. Keep it in .env (git-ignored), not in
+// shell history — see .env.example.
+const MINIMUM_SCORE = parseMinimumScore(process.env.MINIMUM_SCORE);
+const COMPLIANCE_SCORE = parseMinimumScore(process.env.COMPLIANCE_SCORE, 85n);
 
 // ─── Network configuration ─────────────────────────────────────────────────────
 //
@@ -70,21 +88,14 @@ async function waitForProofServer(maxAttempts = 60, delayMs = 2000): Promise<boo
 
 // ─── Compiled contract loading ─────────────────────────────────────────────────
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
-const contractPath = path.join(zkConfigPath, 'contract', 'index.js');
-
-if (!fs.existsSync(contractPath)) {
+if (!isCompiled()) {
   console.error('\n❌ Contract not compiled! Run: npm run compile\n');
   process.exit(1);
 }
 
-const HelloWorld = await import(pathToFileURL(contractPath).href);
-
-const compiledContract = CompiledContract.make('hello-world', HelloWorld.Contract).pipe(
-  CompiledContract.withVacantWitnesses,
-  CompiledContract.withCompiledFileAssets(zkConfigPath),
-);
+// withWitnesses (not withVacantWitnesses): this contract has a real private
+// input. The witness implementation lives in src/compliance.ts.
+const { module: ComplianceContract, compiledContract } = await loadCompiledContract();
 
 // ─── Providers ─────────────────────────────────────────────────────────────────
 
@@ -117,7 +128,7 @@ async function createProviders(walletCtx: WalletContext) {
 
   return {
     privateStateProvider: levelPrivateStateProvider({
-      privateStateStoreName: 'hello-world-state',
+      privateStateStoreName: PRIVATE_STATE_STORE_NAME,
       accountId,
       privateStoragePasswordProvider: () => privateStatePassword,
     }),
@@ -133,8 +144,10 @@ async function createProviders(walletCtx: WalletContext) {
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════════════════════════╗');
-  console.log(`║  Deploy confidential-evidence-gateway to ${network}`);
+  console.log(`║  Deploy Confidential Compliance Proof to ${network}`);
   console.log('╚══════════════════════════════════════════════════════════════╝\n');
+  console.log(`  Public policy threshold (goes on-chain): ${MINIMUM_SCORE}`);
+  console.log('  Private compliance score:                <withheld — never leaves this machine>\n');
 
   const seed = SEED;
 
@@ -288,17 +301,17 @@ async function main() {
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // Midnight.js 4.1.x supplies private state via privateStateId +
-      // initialPrivateState (empty here — the hello-world contract has no
-      // witnesses). args is the contract constructor's arguments: empty for
-      // hello-world's no-arg constructor. (Statically-typed contracts can omit
-      // args entirely; this script loads the contract dynamically, so the
-      // conditional args type widens to any[] and an explicit [] is required.)
+      // args is the Compact constructor's argument list:
+      // constructor(minimumScore: Uint<64>) — the PUBLIC threshold.
+      //
+      // initialPrivateState seeds the local encrypted private-state store with
+      // the supplier's confidential score. It is consumed by the witness at
+      // proving time and never appears in the deploy transaction.
       deployed = await deployContract(providers, {
         compiledContract: compiledContract as any,
-        args: [],
+        args: [MINIMUM_SCORE],
         privateStateId: PRIVATE_STATE_ID,
-        initialPrivateState: {},
+        initialPrivateState: createCompliancePrivateState(COMPLIANCE_SCORE),
       });
       break;
     } catch (err: any) {

@@ -2,11 +2,11 @@
   "name": "confidential-evidence-gateway",
   "version": "1.0.0",
   "type": "module",
-  "description": "A Midnight Network application created with create-mn-app",
+  "description": "Confidential Compliance Proof — prove a private compliance score meets a public policy threshold on Midnight, without revealing the score.",
   "author": "",
   "license": "MIT",
   "scripts": {
-    "compile": "compact compile contracts/hello-world.compact contracts/managed/hello-world",
+    "compile": "compact compile contracts/counter.compact contracts/managed/counter",
     "build": "npx tsc --noEmit || true",
     "setup": "npx tsx src/setup.ts",
     "deploy": "npx tsx src/deploy.ts",
@@ -15,9 +15,10 @@
     "network": "npx tsx src/network.ts",
     "proof-server:start": "docker compose up -d",
     "proof-server:stop": "docker compose down",
-    "clean": "rm -rf contracts/managed .midnight-state.json .midnight-wallet-state",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "test:e2e": "tsx scripts/e2e-check.ts"
+    "clean": "rm -rf contracts/managed .midnight-state.json .midnight-wallet-state coverage",
+    "test": "vitest run",
+    "test:e2e": "tsx scripts/e2e-check.ts",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
@@ -39,10 +40,19 @@
     "@types/node": "^22.0.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.1",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=22.0.0"
   },
-  "keywords": ["midnight", "blockchain", "zero-knowledge", "privacy"]
+  "keywords": [
+    "midnight",
+    "blockchain",
+    "zero-knowledge",
+    "privacy",
+    "compliance",
+    "supply-chain",
+    "digital-product-passport"
+  ]
 }

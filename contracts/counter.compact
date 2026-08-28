@@ -1,0 +1,18 @@
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+export ledger publicMinimumScore: Uint<64>;
+export ledger verifiedClaims: Counter;
+
+witness complianceScore(): Uint<64>;
+
+constructor(minimumScore: Uint<64>) {
+  publicMinimumScore = disclose(minimumScore);
+}
+
+export circuit proveCompliance(): [] {
+  const score = complianceScore();
+  assert(score >= publicMinimumScore, "compliance score below policy threshold");
+  verifiedClaims.increment(1);
+}

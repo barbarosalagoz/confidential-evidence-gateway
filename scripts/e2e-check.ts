@@ -1,12 +1,11 @@
 /**
- * End-to-end smoke check for confidential-evidence-gateway.
+ * End-to-end smoke check for the Confidential Compliance Proof contract.
  *
- * Reconnects to the deployed contract, reads its ledger state, and exits 0
- * on success. Used by `npm run test:e2e` and by the project's CI workflows.
+ * Reconnects to the deployed contract, reads its public ledger state, asserts
+ * the state exposes only the policy threshold and the verified-claim count,
+ * and exits 0 on success. Used by `npm run test:e2e`.
  */
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+
 import { WebSocket } from 'ws';
 
 import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
@@ -16,13 +15,19 @@ import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-pri
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, getDeployment } from '../src/network';
 import { createWallet, persistWalletState } from '../src/wallet';
-import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+import { loadCompiledContract, isCompiled } from '../src/compiled-contract';
+import {
+  createCompliancePrivateState,
+  parseMinimumScore,
+  PRIVATE_STATE_ID,
+  PRIVATE_STATE_STORE_NAME,
+  zkConfigPath,
+} from '../src/compliance';
 
 // @ts-expect-error wallet sync requires WebSocket
 globalThis.WebSocket = WebSocket;
 
-// Must match the privateStateId used at deploy time (witness-free → empty state).
-const PRIVATE_STATE_ID = 'helloWorldPrivateState';
+const COMPLIANCE_SCORE = parseMinimumScore(process.env.COMPLIANCE_SCORE, 85n);
 
 // ─── Network configuration ─────────────────────────────────────────────────────
 
@@ -55,15 +60,8 @@ async function main() {
   }
 
   // 2. Build wallet and providers
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
-  const contractPath = path.join(zkConfigPath, 'contract', 'index.js');
-  if (!fs.existsSync(contractPath)) fail('Compiled contract missing — run `npm run compile`.');
-  const HelloWorld = await import(pathToFileURL(contractPath).href);
-  const compiledContract = CompiledContract.make('hello-world', HelloWorld.Contract).pipe(
-    CompiledContract.withVacantWitnesses,
-    CompiledContract.withCompiledFileAssets(zkConfigPath),
-  );
+  if (!isCompiled()) fail('Compiled contract missing — run `npm run compile`.');
+  const { module: ComplianceContract, compiledContract } = await loadCompiledContract();
 
   const walletCtx = await createWallet({ network, networkConfig, seed: SEED });
   await walletCtx.wallet.waitForSyncedState();
@@ -86,7 +84,7 @@ async function main() {
 
   const providers = {
     privateStateProvider: levelPrivateStateProvider({
-      privateStateStoreName: 'hello-world-state',
+      privateStateStoreName: PRIVATE_STATE_STORE_NAME,
       accountId: walletCtx.unshieldedKeystore.getBech32Address().toString(),
       // SDK requires ≥16 chars. e2e-check is read-only so we don't expose
       // the env-var override here — match the deploy script's local-devnet default.
@@ -105,7 +103,7 @@ async function main() {
       contractAddress: deployment.address,
       compiledContract: compiledContract as any,
       privateStateId: PRIVATE_STATE_ID,
-      initialPrivateState: {},
+      initialPrivateState: createCompliancePrivateState(COMPLIANCE_SCORE),
     });
   } catch (err: any) {
     await walletCtx.wallet.stop();
@@ -121,9 +119,23 @@ async function main() {
     fail(`queryContractState returned null for ${deployment.address}`);
   }
 
+  // 5. The public state must expose the policy threshold and the claim count
+  //    — and nothing shaped like a supplier score.
+  const ledgerState = ComplianceContract.ledger(onChainState.data);
+  const publicFields = Object.keys(ledgerState);
+  const expected = ['publicMinimumScore', 'verifiedClaims'];
+  const unexpected = publicFields.filter((k) => !expected.includes(k));
+  if (unexpected.length > 0) {
+    await walletCtx.wallet.stop();
+    fail(`Public ledger exposes unexpected fields: ${unexpected.join(', ')}`);
+  }
+
   console.log(`✅ e2e-check passed`);
-  console.log(`   contractAddress: ${deployment.address}`);
-  console.log(`   network:         ${network}`);
+  console.log(`   contractAddress:    ${deployment.address}`);
+  console.log(`   network:            ${network}`);
+  console.log(`   publicMinimumScore: ${ledgerState.publicMinimumScore}`);
+  console.log(`   verifiedClaims:     ${ledgerState.verifiedClaims}`);
+  console.log(`   private score on chain: none (by design)`);
 
   await walletCtx.wallet.stop();
   process.exit(0);

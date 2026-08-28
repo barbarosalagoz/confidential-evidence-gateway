@@ -1,13 +1,14 @@
 /**
- * CLI for interacting with confidential-evidence-gateway contract
+ * CLI for the Confidential Compliance Proof contract.
+ *
+ * Option 1 submits a zero-knowledge proof that the supplier's PRIVATE score
+ * meets the PUBLIC threshold. The score itself is read from the local
+ * encrypted private-state store and never leaves this machine.
  */
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+
 import { WebSocket } from 'ws';
-import { Buffer } from 'buffer';
 
 // Midnight SDK imports
 import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
@@ -17,15 +18,22 @@ import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-pri
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, getDeployment } from './network';
 import { createWallet, persistWalletState, unshieldedToken, type WalletContext } from './wallet';
-import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+import { loadCompiledContract, isCompiled } from './compiled-contract';
+import {
+  createCompliancePrivateState,
+  parseMinimumScore,
+  PRIVATE_STATE_ID,
+  PRIVATE_STATE_STORE_NAME,
+  zkConfigPath,
+} from './compliance';
 
 // Enable WebSocket for GraphQL subscriptions
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
 
-// Must match the privateStateId used at deploy time so the CLI reconnects to
-// the same private state. The hello-world contract has no witnesses (empty state).
-const PRIVATE_STATE_ID = 'helloWorldPrivateState';
+// Fallback private score, used only if the local private-state store has no
+// entry for this contract yet (e.g. connecting from a fresh checkout).
+const COMPLIANCE_SCORE = parseMinimumScore(process.env.COMPLIANCE_SCORE, 85n);
 
 const { network, config: networkConfig } = resolveNetwork();
 const WALLET = getOrCreateWallet(network);
@@ -35,24 +43,13 @@ const SEED = WALLET.seed;
   if (notice) console.log(notice);
 }
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
-
 // Load compiled contract
-const contractPath = path.join(zkConfigPath, 'contract', 'index.js');
-
-// Check if contract is compiled
-if (!fs.existsSync(contractPath)) {
+if (!isCompiled()) {
   console.error('\n❌ Contract not compiled! Run: npm run compile\n');
   process.exit(1);
 }
 
-const HelloWorld = await import(pathToFileURL(contractPath).href);
-
-const compiledContract = CompiledContract.make('hello-world', HelloWorld.Contract).pipe(
-  CompiledContract.withVacantWitnesses,
-  CompiledContract.withCompiledFileAssets(zkConfigPath),
-);
+const { module: ComplianceContract, compiledContract } = await loadCompiledContract();
 
 // ─── Providers ─────────────────────────────────────────────────────────────────
 
@@ -85,7 +82,7 @@ async function createProviders(walletCtx: WalletContext) {
 
   return {
     privateStateProvider: levelPrivateStateProvider({
-      privateStateStoreName: 'hello-world-state',
+      privateStateStoreName: PRIVATE_STATE_STORE_NAME,
       accountId,
       privateStoragePasswordProvider: () => privateStatePassword,
     }),
@@ -101,7 +98,7 @@ async function createProviders(walletCtx: WalletContext) {
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════════════════════════╗');
-  console.log('║                   confidential-evidence-gateway CLI                           ║');
+  console.log('║              Confidential Compliance Proof — CLI              ║');
   console.log('╚══════════════════════════════════════════════════════════════╝\n');
 
   const rl = createInterface({ input: stdin, output: stdout });
@@ -161,7 +158,7 @@ async function main() {
       compiledContract: compiledContract as any,
       contractAddress: deployment.address,
       privateStateId: PRIVATE_STATE_ID,
-      initialPrivateState: {},
+      initialPrivateState: createCompliancePrivateState(COMPLIANCE_SCORE),
     });
 
     console.log('  ✅ Connected!\n');
@@ -170,8 +167,8 @@ async function main() {
     let running = true;
     while (running) {
       console.log('─── Menu ───────────────────────────────────────────────────────');
-      console.log('  1. Store a message');
-      console.log('  2. Read current message');
+      console.log('  1. Submit a compliance proof (private score ≥ public threshold)');
+      console.log('  2. Read public ledger state');
       console.log('  3. Check wallet balance');
       console.log('  4. Exit\n');
 
@@ -179,29 +176,36 @@ async function main() {
 
       switch (choice.trim()) {
         case '1': {
-          const message = await rl.question('  Enter your message: ');
-          console.log('\n  Submitting transaction (this may take 30-60 seconds)...');
+          console.log('\n  Proving that your private score meets the public threshold.');
+          console.log('  (The score is supplied as a witness; only the proof goes on-chain.)');
+          console.log('  Submitting transaction (this may take 30-60 seconds)...');
           try {
-            const tx = await deployed.callTx.storeMessage(message);
-            console.log(`\n  ✅ Message stored: "${message}"`);
+            const tx = await deployed.callTx.proveCompliance();
+            console.log('\n  ✅ Compliance proven. Public state now records one more verified claim.');
             console.log(`  Transaction ID: ${tx.public.txId}`);
             console.log(`  Block height: ${tx.public.blockHeight}\n`);
           } catch (error) {
-            console.error('\n  ❌ Failed:', error instanceof Error ? error.message : error);
+            // A failing assert inside the circuit means the private score did
+            // not meet the threshold. The proof simply cannot be produced —
+            // nothing about the score is published either way.
+            console.error('\n  ❌ Proof not produced:', error instanceof Error ? error.message : error);
+            console.error('     (If the score is below the threshold this is the expected outcome.)\n');
           }
           break;
         }
 
         case '2': {
-          console.log('\n  Reading message from blockchain...');
+          console.log('\n  Reading public ledger state from the chain...');
           try {
             const contractState = await providers.publicDataProvider.queryContractState(deployment.address);
             if (contractState) {
-              const ledgerState = HelloWorld.ledger(contractState.data);
-              const message = Buffer.from(ledgerState.message).toString();
-              console.log(`\n  📋 Current message: "${message}"\n`);
+              const ledgerState = ComplianceContract.ledger(contractState.data);
+              console.log('\n  📋 Public ledger state (everything an observer can see):');
+              console.log(`     publicMinimumScore: ${ledgerState.publicMinimumScore}`);
+              console.log(`     verifiedClaims:     ${ledgerState.verifiedClaims}`);
+              console.log('     (No supplier score is present here — by design.)\n');
             } else {
-              console.log('\n  📋 No message found (contract state empty)\n');
+              console.log('\n  📋 No state found for this contract address\n');
             }
           } catch (error) {
             console.error('\n  ❌ Failed:', error instanceof Error ? error.message : error);
