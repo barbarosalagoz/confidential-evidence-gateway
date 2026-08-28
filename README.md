@@ -23,9 +23,23 @@ This project explores a vendor-neutral confidential compliance gateway for globa
 | | |
 |---|---|
 | **Network** | Midnight Preprod (public testnet) |
-| **Contract address** | `CONTRACT_ADDRESS_PLACEHOLDER` |
+| **Contract address** | `ff3ce6ef5f9f6d0f2eb21724476fca328f9c2ccaee768f3c91c32b8db08cf25f` |
+| **Deploy transaction** | `5c9934f9bdee6fd6533f68046b8cc3d9a04a40a92959d90012e10990d6b0ec0e` |
+| **Block height** | 2306230 |
+| **Deployed at** | 2026-08-28T20:45:54Z |
 | **Contract source** | [`contracts/counter.compact`](contracts/counter.compact) |
 | **Circuit** | `proveCompliance()` |
+
+Published ledger state at deployment, read back from the chain with
+`npm run verify:deploy` — no wallet needed, this is what any observer sees:
+
+```
+publicMinimumScore : 70
+verifiedClaims     : 0
+
+fields exposed     : publicMinimumScore, verifiedClaims
+supplier score     : NOT PRESENT
+```
 
 The contract file is named `counter.compact` because the Level 1 checklist
 expects that filename. The logic inside is a confidential compliance proof, not
@@ -193,6 +207,17 @@ deploys. On the first run it prints a **wallet address** and a **faucet URL**,
 then waits: open the faucet, paste the address, request tNIGHT, and the script
 continues on its own once the funds land.
 
+> **Budget time for the first sync.** A brand-new wallet scans Preprod from
+> genesis (~2.3M blocks), which took **~83 minutes** on a normal laptop at
+> ~90% of one core. There is no progress indicator — the wallet SDK exposes
+> only a boolean `isSynced` — so the elapsed-seconds ticker is all you get.
+> This is a one-time cost: the synced state is written to
+> `.midnight-wallet-state/` and later runs restore from it in seconds.
+>
+> You do not have to wait to request faucet funds. Run `npm run address` in
+> another terminal — it derives the address locally from the stored seed and
+> prints it immediately, so funding proceeds in parallel with the sync.
+
 > ⚠️ The first run also prints a **BIP-39 recovery phrase**. Never screenshot,
 > paste or commit it.
 
@@ -200,6 +225,7 @@ continues on its own once the funds land.
 
 ```bash
 npm run cli            # submit proofs; read public ledger state
+npm run verify:deploy  # read on-chain public state (no wallet, no sync)
 npm run test:e2e       # reconnect and verify on-chain state
 npm run check-balance  # wallet balance
 ```

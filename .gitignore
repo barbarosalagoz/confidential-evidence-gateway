@@ -89,10 +89,18 @@ id_ed25519*
 .midnight-state.json.tmp-*
 .midnight-wallet-state/
 
-# Local private-state store (LevelDB) — holds witness/private inputs
+# Local private-state store (LevelDB) — holds witness/private inputs.
+# The default store directory is `midnight-level-db/`, which matched none of
+# the earlier patterns and was caught only by a pre-commit review. Patterns
+# below are deliberately broad: this directory holds the supplier's private
+# compliance state, encrypted with a password that lives in .env.
 *-state/
 *-private-state/
 level-db/
+midnight-level-db/
+*level-db*/
+*leveldb*/
+*.ldb
 
 # Local witness data / evidence fixtures that are not synthetic
 witness-data/

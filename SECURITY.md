@@ -48,7 +48,7 @@ The following must **never** be committed, and are excluded in `.gitignore`:
 |---|---|
 | Wallet seed and BIP-39 recovery phrase | `.midnight-state.json` (mode `0600`) |
 | Wallet sync cache | `.midnight-wallet-state/` |
-| The supplier's private compliance score | `.env`, and the local encrypted private-state store |
+| The supplier's private compliance score | `.env`, and `midnight-level-db/` (the encrypted private-state store) |
 | Private-state store password | `.env` (`PRIVATE_STATE_PASSWORD`) |
 
 `.env.example` documents every variable with no real values in it.
