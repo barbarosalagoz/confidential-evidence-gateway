@@ -1,0 +1,110 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Contract artifacts
+contracts/managed/
+
+# Deployment info
+deployment.json
+
+# Wallet seed (sensitive)
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory
+coverage/
+
+# Private state
+*-state/
+
+# Temporary files
+tmp/
+temp/
+
+# Midnight network state (per-network seeds, deploy addresses)
+.midnight-state.json
+
+# Midnight wallet sync state (per-network serialized wallet state cache)
+.midnight-wallet-state/
+
+# ─── Secrets & sensitive local state (confidential-evidence-gateway) ──────────
+# Never commit anything that could let someone else spend funds, impersonate
+# this deployer, or reconstruct a supplier's private compliance evidence.
+
+# Environment files (all variants)
+.env*
+!.env.example
+
+# Wallet seeds, recovery phrases, keys
+*.seed
+*.seed.txt
+.midnight-seed
+.midnight-seed.*
+seed.txt
+mnemonic.txt
+*mnemonic*
+*.mnemonic
+wallet-seed*
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Midnight local state (contains per-network wallet seed + recovery phrase)
+.midnight-state.json
+.midnight-state.json.tmp-*
+.midnight-wallet-state/
+
+# Local private-state store (LevelDB) — holds witness/private inputs
+*-state/
+*-private-state/
+level-db/
+
+# Local witness data / evidence fixtures that are not synthetic
+witness-data/
+private-evidence/
+
+# Debug dumps, traces, proof artifacts that may embed private inputs
+*.dump
+*.heapsnapshot
+debug-*.json
+proof-dump*/
+transcript-*.json
+
+# Test/coverage output
+coverage/
+.vitest/
