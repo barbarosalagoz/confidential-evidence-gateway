@@ -9,6 +9,8 @@
  * Non-interactive: scaffold → npm run setup runs straight through.
  * No readline prompts, no .midnight-seed file.
  */
+import './env'; // side effect: load .env before any process.env read
+
 
 import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, recordDeployment } from './network';
 import { createWallet, persistWalletState, unshieldedToken, type WalletContext } from './wallet';

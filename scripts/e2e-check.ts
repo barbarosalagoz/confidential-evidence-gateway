@@ -5,6 +5,8 @@
  * the state exposes only the policy threshold and the verified-claim count,
  * and exits 0 on success. Used by `npm run test:e2e`.
  */
+import '../src/env'; // side effect: load .env before any process.env read
+
 
 import { WebSocket } from 'ws';
 

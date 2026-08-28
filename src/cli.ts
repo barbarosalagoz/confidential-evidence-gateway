@@ -5,6 +5,8 @@
  * meets the PUBLIC threshold. The score itself is read from the local
  * encrypted private-state store and never leaves this machine.
  */
+import './env'; // side effect: load .env before any process.env read
+
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 

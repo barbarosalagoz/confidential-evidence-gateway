@@ -18,7 +18,9 @@
     "clean": "rm -rf contracts/managed .midnight-state.json .midnight-wallet-state coverage",
     "test": "vitest run",
     "test:e2e": "tsx scripts/e2e-check.ts",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify:compile": "bash scripts/show-compile.sh",
+    "address": "npx tsx scripts/show-address.ts"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
