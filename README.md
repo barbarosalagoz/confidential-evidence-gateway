@@ -24,22 +24,27 @@ This project explores a vendor-neutral confidential compliance gateway for globa
 |---|---|
 | **Network** | Midnight Preprod (public testnet) |
 | **Contract address** | `ff3ce6ef5f9f6d0f2eb21724476fca328f9c2ccaee768f3c91c32b8db08cf25f` |
-| **Deploy transaction** | `5c9934f9bdee6fd6533f68046b8cc3d9a04a40a92959d90012e10990d6b0ec0e` |
-| **Block height** | 2306230 |
-| **Deployed at** | 2026-08-28T20:45:54Z |
+| **Deploy transaction** | `5c9934f9bdee6fd6533f68046b8cc3d9a04a40a92959d90012e10990d6b0ec0e` (block 2306230, 2026-08-28T20:45:54Z) |
+| **Claim transaction** | `267aba31601313b3f3f34cf6d143f015355ec4f9f77f4d2ed243484d83b02124` (block 2306359, 2026-08-28T20:58:48Z) |
 | **Contract source** | [`contracts/counter.compact`](contracts/counter.compact) |
 | **Circuit** | `proveCompliance()` |
 
-Published ledger state at deployment, read back from the chain with
+A real compliance proof has been submitted on Preprod. Public ledger state
+before and after that claim, read back from the chain with
 `npm run verify:deploy` — no wallet needed, this is what any observer sees:
 
 ```
-publicMinimumScore : 70
-verifiedClaims     : 0
+                       at deploy        after one claim
+publicMinimumScore  :  70               70
+verifiedClaims      :  0                1
 
-fields exposed     : publicMinimumScore, verifiedClaims
-supplier score     : NOT PRESENT
+fields exposed      :  publicMinimumScore, verifiedClaims
+supplier score      :  NOT PRESENT      NOT PRESENT
 ```
+
+The counter moved; the score did not appear. That is the entire claim of the
+project, demonstrated on a public network rather than only in the simulator.
+Reproduce the claim with `npm run claim -- --network preprod`.
 
 The contract file is named `counter.compact` because the Level 1 checklist
 expects that filename. The logic inside is a confidential compliance proof, not
@@ -268,6 +273,30 @@ Verified against `docs.midnight.network` on 2026-08-28.
 | Midnight.js | 4.1.1 |
 | Wallet SDK | 1.2.0 |
 | Node.js | 22.23.2 |
+
+### A load-bearing dependency pin
+
+`package.json` contains:
+
+```json
+"overrides": { "@midnight-ntwrk/onchain-runtime-v3": "3.0.0" }
+```
+
+Do not remove it. `compact-runtime` depends on `^3.0.0` while
+`midnight-js-protocol` pins exactly `3.0.0`, so npm hoists 3.1.0 for one and
+nests a second 3.0.0 copy for the other. Each copy is a separate WASM
+instance, so a `StateValue` produced by the generated contract is rejected by
+the other copy's `ChargedState`, and **every circuit call fails** with:
+
+```
+Unexpected error executing scoped transaction: Error: expected instance of StateValue
+```
+
+Deployment still succeeds, which makes this easy to miss — it only bites on
+the first `callTx`. The override forces one resolved copy. Note that pinning
+alone is not sufficient if a stale tree already has two same-version copies;
+`npm dedupe` collapses them, and `npm ci` from the committed lockfile then
+reproduces the single copy.
 
 ---
 

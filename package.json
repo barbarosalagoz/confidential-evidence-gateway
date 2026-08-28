@@ -2,7 +2,7 @@
   "name": "confidential-evidence-gateway",
   "version": "1.0.0",
   "type": "module",
-  "description": "Confidential Compliance Proof — prove a private compliance score meets a public policy threshold on Midnight, without revealing the score.",
+  "description": "Confidential Compliance Proof \u2014 prove a private compliance score meets a public policy threshold on Midnight, without revealing the score.",
   "author": "",
   "license": "MIT",
   "scripts": {
@@ -21,7 +21,8 @@
     "test:watch": "vitest",
     "verify:compile": "bash scripts/show-compile.sh",
     "address": "npx tsx scripts/show-address.ts",
-    "verify:deploy": "npx tsx scripts/verify-deploy.ts"
+    "verify:deploy": "npx tsx scripts/verify-deploy.ts",
+    "claim": "npx tsx scripts/submit-claim.ts"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
@@ -57,5 +58,8 @@
     "compliance",
     "supply-chain",
     "digital-product-passport"
-  ]
+  ],
+  "overrides": {
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
+  }
 }

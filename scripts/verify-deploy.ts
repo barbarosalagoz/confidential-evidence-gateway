@@ -51,11 +51,14 @@ const contractState = ContractState.deserialize(Uint8Array.from(Buffer.from(acti
 const ledger = ComplianceContract.ledger(contractState.data);
 
 const block = action.transaction?.block ?? {};
-console.log('\n=== Deployment ==================================================');
+// contractAction(address) returns the contract's MOST RECENT action, not its
+// deployment — after the first circuit call this is a ContractCall, not the
+// ContractDeploy. Label it accurately rather than implying it is the deploy.
+console.log('\n=== Latest on-chain action =====================================');
 console.log(`  network        : ${network}`);
 console.log(`  contract       : ${action.address}`);
 console.log(`  action type    : ${action.__typename}`);
-console.log(`  deploy tx      : ${action.transaction?.hash}`);
+console.log(`  tx hash        : ${action.transaction?.hash}`);
 console.log(`  block height   : ${block.height}`);
 console.log(`  block time     : ${block.timestamp ? new Date(block.timestamp).toISOString() : 'n/a'}`);
 
