@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# The Compact toolchain versions this project is pinned to. Compiler 0.34.x is
+# deliberately NOT used: it targets Ledger 9, which is not yet deployed on
+# Midnight's public networks. Contracts for current public networks stay on the
+# 0.31.x line, per docs.midnight.network.
+env:
+  COMPACT_COMPILER_VERSION: 0.31.1
+
+jobs:
+  build:
+    name: Compile contract and run tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Compact toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.compact
+          key: compact-${{ runner.os }}-${{ env.COMPACT_COMPILER_VERSION }}
+
+      - name: Install Compact developer tools
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Compact compiler ${{ env.COMPACT_COMPILER_VERSION }}
+        run: compact update "$COMPACT_COMPILER_VERSION"
+
+      - name: Report toolchain versions
+        run: |
+          compact --version
+          compact compile --version
+          node --version
+
+      - name: Compile contract
+        run: npm run compile
+
+      - name: Verify compiled artifacts
+        # A compile that emits no prover/verifier key is a failed compile even
+        # if the command exited 0.
+        run: |
+          set -euo pipefail
+          test -f contracts/managed/counter/contract/index.js
+          test -f contracts/managed/counter/keys/proveCompliance.prover
+          test -f contracts/managed/counter/keys/proveCompliance.verifier
+          test -f contracts/managed/counter/zkir/proveCompliance.zkir
+          echo "--- contract-info.json ---"
+          cat contracts/managed/counter/compiler/contract-info.json
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
+
+  secret-hygiene:
+    name: No secrets in version control
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert no secret-bearing files are tracked
+        # .gitignore is the control; this is the check that it is actually
+        # working. Fails the build if any of these ever gets committed.
+        run: |
+          set -uo pipefail
+          patterns='^\.env$|^\.env\.|\.midnight-state\.json|\.midnight-wallet-state|mnemonic|\.seed$|\.pem$|\.p12$|id_rsa|id_ed25519'
+          # .env.example is documentation and carries no real values.
+          tracked=$(git ls-files | grep -Ev '^\.env\.example$' | grep -E "$patterns" || true)
+          if [ -n "$tracked" ]; then
+            echo "::error::Secret-bearing files are tracked in git:"
+            echo "$tracked"
+            exit 1
+          fi
+          echo "OK — no secret-bearing files tracked."
+
+      - name: Assert the private score is not hard-coded outside tests
+        run: |
+          set -uo pipefail
+          hits=$(grep -rnE 'COMPLIANCE_SCORE\s*=\s*[0-9]+' --include='*.ts' src/ scripts/ || true)
+          if [ -n "$hits" ]; then
+            echo "::error::A compliance score appears hard-coded in source:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "OK — no hard-coded score in src/ or scripts/."
