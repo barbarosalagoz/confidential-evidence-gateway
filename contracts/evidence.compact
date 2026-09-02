@@ -1,0 +1,62 @@
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+// ─── Level 2: Compliance-Evidence Commitment Registry ────────────────────────
+//
+// Prove that a valid evidence record exists for a compliance control —
+// without revealing the record.
+//
+// Public ledger state (visible to everyone):
+//   - which control IDs have evidence registered
+//   - an opaque 32-byte commitment per control (hiding + binding; reveals
+//     nothing about the evidence thanks to the random salt)
+//   - whether the evidence for a control has been proven valid
+//
+// Never on-chain, never transmitted:
+//   - the evidence record itself
+//   - its digest
+//   - the commitment salt
+
+// controlId → commit(evidenceDigest, salt). The commitment is public but
+// opaque: two different evidence records produce indistinguishable entries.
+export ledger evidenceCommitments: Map<Uint<64>, Bytes<32>>;
+
+// controlId → verification status. false = registered, awaiting proof;
+// true = a prover demonstrated knowledge of the committed evidence.
+export ledger verifiedControls: Map<Uint<64>, Boolean>;
+
+// Global count of successful proofs, so observers can see activity happened.
+export ledger totalVerifications: Counter;
+
+// PRIVATE inputs. Supplied by the local witness implementation from the
+// prover's private state; they enter the proof, never the transaction.
+witness evidenceDigest(controlId: Uint<64>): Bytes<32>;
+witness evidenceSalt(controlId: Uint<64>): Bytes<32>;
+
+constructor() {}
+
+// Register (or replace) the evidence commitment for a control. Publishes
+// only controlId and the opaque commitment. Re-registering resets the
+// verified flag: new evidence must be re-proven.
+export circuit registerEvidence(controlId: Uint<64>): [] {
+  const digest = evidenceDigest(controlId);
+  const salt = evidenceSalt(controlId);
+  const commitment = persistentCommit<Bytes<32>>(digest, salt);
+  evidenceCommitments.insert(disclose(controlId), disclose(commitment));
+  verifiedControls.insert(disclose(controlId), false);
+}
+
+// Prove that the caller holds evidence matching the registered commitment.
+// The comparison happens inside the circuit: only success or failure
+// escapes, never the digest or salt. On success the control is marked
+// verified on the public ledger.
+export circuit proveEvidence(controlId: Uint<64>): [] {
+  assert(evidenceCommitments.member(disclose(controlId)), "no evidence registered for this control");
+  const digest = evidenceDigest(controlId);
+  const salt = evidenceSalt(controlId);
+  const commitment = persistentCommit<Bytes<32>>(digest, salt);
+  assert(evidenceCommitments.lookup(disclose(controlId)) == commitment, "evidence does not match registered commitment");
+  verifiedControls.insert(disclose(controlId), true);
+  totalVerifications.increment(1);
+}
