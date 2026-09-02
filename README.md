@@ -1,11 +1,14 @@
 # Confidential Evidence Gateway
 
 **Prove a private compliance score meets a public policy threshold — without
-revealing the score.**
+revealing the score.** (Level 1)
 
-A Midnight Network smart contract and client. Level 1 of the Rise In / Midnight
-Network challenge, built on Midnight **Preprod** (public testnet, test tokens
-only).
+**Prove a valid evidence record exists for a compliance control — without
+revealing the record.** (Level 2)
+
+A Midnight Network smart contract suite, CLI and web DApp. Levels 1 and 2 of
+the Rise In / Midnight Network challenge, built on Midnight **Preprod** (public
+testnet, test tokens only).
 
 > Status: unaudited demonstration of one privacy primitive. Not for production
 > or mainnet. See [SECURITY.md](SECURITY.md).
@@ -49,6 +52,144 @@ Reproduce the claim with `npm run claim -- --network preprod`.
 The contract file is named `counter.compact` because the Level 1 checklist
 expects that filename. The logic inside is a confidential compliance proof, not
 a counter.
+
+---
+
+## Level 2 — Compliance-Evidence Commitment Registry
+
+Level 1 proved a private *number* against a public threshold. Level 2 proves
+the existence and integrity of a private *document*, from a real frontend, with
+the Lace wallet: the **compliance-evidence commitment**.
+
+> **The privacy claim, precisely.** For a public control ID `X`, a successful
+> `proveEvidence(X)` transaction proves on the public ledger that *the caller
+> knows an evidence record whose commitment equals the one registered for
+> `X`* — that is, "a valid evidence record exists for control X and its holder
+> demonstrated knowledge of it". What is **proven**: existence, integrity
+> (any change to the record breaks the proof), and knowledge of the record
+> behind the registered commitment. What stays **hidden**: the record's
+> content, its SHA-256 digest, and the commitment salt — none of them appear
+> in the transaction, the public transcript, or the ledger, in any encoding.
+> **Why**: the ledger stores only `persistentCommit(digest, salt)` — a hiding
+> and binding commitment. The salt is 32 uniformly random bytes, so the
+> commitment is statistically independent of the content; the digest and salt
+> enter the ZK circuit as witnesses, and only the proof's success or failure
+> escapes it. A failed proof produces no transaction at all — failed attempts
+> are not just private, they are invisible.
+
+### Level 2 deployment
+
+| | |
+|---|---|
+| **Network** | Midnight Preprod (public testnet) |
+| **Contract address** | _pending — filled by `npm run deploy:evidence -- --network preprod`_ |
+| **Contract source** | [`contracts/evidence.compact`](contracts/evidence.compact) |
+| **Circuits** | `registerEvidence(controlId)`, `proveEvidence(controlId)` |
+| **Live demo** | _pending — Vercel_ |
+
+Verify the on-chain state yourself, with no wallet:
+
+```bash
+npm run verify:evidence -- --network preprod
+```
+
+### The Level 2 contract
+
+```compact
+export ledger evidenceCommitments: Map<Uint<64>, Bytes<32>>;
+export ledger verifiedControls: Map<Uint<64>, Boolean>;
+export ledger totalVerifications: Counter;
+
+witness evidenceDigest(controlId: Uint<64>): Bytes<32>;
+witness evidenceSalt(controlId: Uint<64>): Bytes<32>;
+
+export circuit registerEvidence(controlId: Uint<64>): [] {
+  const commitment = persistentCommit<Bytes<32>>(evidenceDigest(controlId), evidenceSalt(controlId));
+  evidenceCommitments.insert(disclose(controlId), disclose(commitment));
+  verifiedControls.insert(disclose(controlId), false);
+}
+
+export circuit proveEvidence(controlId: Uint<64>): [] {
+  assert(evidenceCommitments.member(disclose(controlId)), "no evidence registered for this control");
+  const commitment = persistentCommit<Bytes<32>>(evidenceDigest(controlId), evidenceSalt(controlId));
+  assert(evidenceCommitments.lookup(disclose(controlId)) == commitment, "evidence does not match registered commitment");
+  verifiedControls.insert(disclose(controlId), true);
+  totalVerifications.increment(1);
+}
+```
+
+`disclose()` is applied to exactly two things: the caller-chosen control ID
+and the commitment itself — publishing them is the point. It is deliberately
+**not** applied to the digest or salt; they exist only inside the circuit.
+Re-registering a control resets its verified flag: replaced evidence must be
+re-proven.
+
+### Level 2 public/private boundary
+
+**Public — on the ledger, visible to everyone**
+
+| Value | Why it is public |
+|---|---|
+| control IDs | The catalog being audited against; meaningless without a shared control taxonomy, revealing at most *which* controls are in scope. |
+| `evidenceCommitments[X]` | 32 opaque bytes per control. Hiding (random salt) and binding (changing the record breaks the proof). |
+| `verifiedControls[X]` + `totalVerifications` | The observable outcome: an auditor can see *that* evidence was proven, which is the product. |
+
+**Private — this machine/browser only, never transmitted**
+
+| Value | Where it lives |
+|---|---|
+| Evidence record content | Browser `localStorage` (web) / LevelDB store (CLI) — the DApp's local private state. |
+| SHA-256 digest of the record | Same store; witness input only. |
+| Commitment salt | Same store; witness input only. |
+
+Two different evidence records produce byte-identical public *shapes* (same
+flags, same counter, equally opaque 32-byte commitments) — asserted directly
+in the test suite (`tests/evidence.test.ts`), along with a deep scan proving
+the digest and salt appear nowhere in public state or the public transcript.
+
+### The web DApp (`web/`)
+
+A Vite + React frontend on the same pinned Ledger-8 stack:
+
+- **Lace connect/disconnect** via the DApp Connector API `4.x`: wallets are
+  enumerated from `window.midnight` (UUID keys, no hardcoded name) and
+  filtered by a semver check on `apiVersion`.
+- **Circuits called from the UI**: `registerEvidence` / `proveEvidence` run
+  through `findDeployedContract(...).callTx`, with tx hash and block height
+  surfaced in the activity log.
+- **Proving**: delegated to the wallet via `getProvingProvider()` (the
+  current, non-deprecated path), falling back to the proof server URI the
+  wallet advertises. ZK artifacts (`/keys/*.prover|.verifier`,
+  `/zkir/*.bzkir`) are served from the site's own origin.
+- **Local private state**: a `localStorage`-backed `PrivateStateProvider`
+  scoped per contract address holds the evidence records; the witness
+  implementations read from it at proving time.
+- **Auditor view**: reads public state straight from the Preprod indexer with
+  *no wallet at all* — exactly what any observer sees. This is the demo of
+  the privacy claim: verified flags visible, evidence absent.
+
+Run it locally:
+
+```bash
+npm run compile:evidence     # once, repo root (artifacts are also committed)
+cd web && npm install && npm run dev
+```
+
+Requirements for submitting transactions: Chrome with the Lace (Midnight
+Preview) extension, wallet switched to **Preprod**, and some tDUST from the
+[Preprod faucet](https://faucet.preprod.midnight.network/). The auditor panel
+works with nothing installed at all.
+
+### Level 2 limits, stated plainly
+
+- The circuit proves knowledge of the *committed* record, not that the record
+  is *true* — binding commitments to attested real-world evidence (signatures
+  from an issuing auditor) remains future work, as documented since Level 1.
+- Anyone holding the record (digest + salt) can run `proveEvidence`; the
+  registry does not bind controls to an owner key. Adding an owner public key
+  per control (as in the bboard pattern) is a straightforward extension.
+- Control IDs are public by design; if the *set* of controls under audit is
+  itself sensitive, IDs should be randomized handles.
 
 ---
 
@@ -240,8 +381,16 @@ npm run check-balance  # wallet balance
 ## Project layout
 
 ```
-contracts/counter.compact       the Compact contract
+contracts/counter.compact       the Level 1 Compact contract
+contracts/evidence.compact      the Level 2 evidence-commitment contract
 contracts/managed/counter/      generated: contract JS, prover/verifier keys, zkir
+contracts/managed/evidence/     generated but COMMITTED (hosted web builds need it)
+src/evidence.ts                 Level 2 private-state model + witnesses (browser-safe)
+src/evidence-node.ts            Level 2 artifact loader (Node)
+src/deploy-evidence.ts          Level 2 deploy; writes deployments/evidence.<network>.json
+scripts/verify-evidence.ts      Level 2 observer view of on-chain public state
+tests/evidence*.ts              Level 2 simulator + privacy tests
+web/                            Level 2 frontend (Lace connect, circuits, auditor view)
 src/compliance.ts               private-state type, witness impl, policy parsing
 src/compiled-contract.ts        attaches witnesses to compiled artifacts
 src/deploy.ts  src/cli.ts       deploy and interact

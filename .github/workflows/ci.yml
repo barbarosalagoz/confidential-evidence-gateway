@@ -51,8 +51,10 @@ jobs:
           compact compile --version
           node --version
 
-      - name: Compile contract
-        run: npm run compile
+      - name: Compile contracts
+        run: |
+          npm run compile
+          npm run compile:evidence
 
       - name: Verify compiled artifacts
         # A compile that emits no prover/verifier key is a failed compile even
@@ -63,14 +65,24 @@ jobs:
           test -f contracts/managed/counter/keys/proveCompliance.prover
           test -f contracts/managed/counter/keys/proveCompliance.verifier
           test -f contracts/managed/counter/zkir/proveCompliance.zkir
+          test -f contracts/managed/evidence/contract/index.js
+          test -f contracts/managed/evidence/keys/registerEvidence.prover
+          test -f contracts/managed/evidence/keys/proveEvidence.prover
+          test -f contracts/managed/evidence/zkir/proveEvidence.bzkir
           echo "--- contract-info.json ---"
           cat contracts/managed/counter/compiler/contract-info.json
+          cat contracts/managed/evidence/compiler/contract-info.json
 
       - name: Typecheck
         run: npx tsc --noEmit
 
       - name: Run tests
         run: npm test
+
+      - name: Build web frontend
+        run: |
+          npm install --prefix web
+          npm run build --prefix web
 
   secret-hygiene:
     name: No secrets in version control
