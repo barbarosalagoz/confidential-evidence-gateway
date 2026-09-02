@@ -7,6 +7,7 @@
   "license": "MIT",
   "scripts": {
     "compile": "compact compile contracts/counter.compact contracts/managed/counter",
+    "compile:evidence": "compact compile contracts/evidence.compact contracts/managed/evidence",
     "build": "npx tsc --noEmit || true",
     "setup": "npx tsx src/setup.ts",
     "deploy": "npx tsx src/deploy.ts",
