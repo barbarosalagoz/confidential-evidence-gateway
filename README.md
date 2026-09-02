@@ -10,6 +10,10 @@ A Midnight Network smart contract suite, CLI and web DApp. Levels 1 and 2 of
 the Rise In / Midnight Network challenge, built on Midnight **Preprod** (public
 testnet, test tokens only).
 
+**Live demo:** <https://confidential-evidence-gateway-swvq.vercel.app> ·
+**Demo video:** <https://youtu.be/wn4n3YQOEyE> ·
+**Level 2 contract:** `c421e7a82bf0c793e1a99218152ce6bdafb89f55dc12e2dd046458b6e5991df5` on Preprod
+
 > Status: unaudited demonstration of one privacy primitive. Not for production
 > or mainnet. See [SECURITY.md](SECURITY.md).
 
@@ -63,19 +67,32 @@ the Lace wallet: the **compliance-evidence commitment**.
 
 > **The privacy claim, precisely.** For a public control ID `X`, a successful
 > `proveEvidence(X)` transaction proves on the public ledger that *the caller
-> knows an evidence record whose commitment equals the one registered for
-> `X`* — that is, "a valid evidence record exists for control X and its holder
-> demonstrated knowledge of it". What is **proven**: existence, integrity
-> (any change to the record breaks the proof), and knowledge of the record
-> behind the registered commitment. What stays **hidden**: the record's
-> content, its SHA-256 digest, and the commitment salt — none of them appear
-> in the transaction, the public transcript, or the ledger, in any encoding.
-> **Why**: the ledger stores only `persistentCommit(digest, salt)` — a hiding
-> and binding commitment. The salt is 32 uniformly random bytes, so the
-> commitment is statistically independent of the content; the digest and salt
-> enter the ZK circuit as witnesses, and only the proof's success or failure
-> escapes it. A failed proof produces no transaction at all — failed attempts
-> are not just private, they are invisible.
+> knows the `(digest, salt)` pair behind the commitment registered for `X`* —
+> in the registry's convention, where the digest is the SHA-256 of an evidence
+> record: "an evidence record matching what was registered for control X
+> exists, and its holder demonstrated knowledge of it". What is **proven**:
+> knowledge of the committed pair, and integrity relative to registration —
+> any change to the record changes the digest and breaks the proof. What is
+> **not** proven: that the digest is really the hash of a document, or that
+> the document is true — the circuit sees only 32-byte values (see the limits
+> below). What stays **hidden**: the record's content, its digest, and the
+> salt — none of them appear in the transaction, the public transcript, or
+> the ledger, in any encoding (asserted by deep-scan tests in
+> `tests/evidence.test.ts`). **Why**: the ledger stores only
+> `persistentCommit(digest, salt)` — a computationally hiding, binding,
+> hash-based commitment; with a fresh 32-byte random salt, the published
+> commitment reveals nothing feasible to extract about the digest or content.
+> The digest and salt enter the ZK circuit as witnesses, and only the proof's
+> success or failure escapes it.
+>
+> Also public, as for any contract call: the contract address, **which
+> circuit was invoked** (`registerEvidence` vs `proveEvidence`), the control
+> ID argument, transaction timing and fees, and the submitting party's
+> transaction metadata — so an observer can correlate *when* controls were
+> registered and proven, just not *what* the evidence says. A proof whose
+> assertions fail locally produces no transaction at all — such attempts are
+> invisible; only a race (e.g. the commitment being replaced between proving
+> and inclusion) can surface as a visibly failed transaction.
 
 ### Level 2 deployment
 
@@ -84,9 +101,14 @@ the Lace wallet: the **compliance-evidence commitment**.
 | **Network** | Midnight Preprod (public testnet) |
 | **Contract address** | `c421e7a82bf0c793e1a99218152ce6bdafb89f55dc12e2dd046458b6e5991df5` |
 | **Deploy transaction** | `b6c7bf2f14152b82656ed1f8558a9f924f3ed158a048e9ab11d85ba197f4b22f` (block 2376823, 2026-09-02T18:25:36Z) |
+| **Explorer** | [preprod.midnightexplorer.com](https://preprod.midnightexplorer.com) — search the contract address or tx hashes above |
 | **Contract source** | [`contracts/evidence.compact`](contracts/evidence.compact) |
 | **Circuits** | `registerEvidence(controlId)`, `proveEvidence(controlId)` |
-| **Live demo** | _pending — Vercel_ |
+| **Live demo** | [confidential-evidence-gateway-swvq.vercel.app](https://confidential-evidence-gateway-swvq.vercel.app) |
+| **Demo video** | [youtu.be/wn4n3YQOEyE](https://youtu.be/wn4n3YQOEyE) |
+
+The deployment record the frontend joins is committed at
+[`deployments/evidence.preprod.json`](deployments/evidence.preprod.json).
 
 A real register + prove cycle has been executed on Preprod:
 
@@ -159,13 +181,18 @@ re-proven.
 | `evidenceCommitments[X]` | 32 opaque bytes per control. Hiding (random salt) and binding (changing the record breaks the proof). |
 | `verifiedControls[X]` + `totalVerifications` | The observable outcome: an auditor can see *that* evidence was proven, which is the product. |
 
-**Private — this machine/browser only, never transmitted**
+**Private — never on-chain**
 
-| Value | Where it lives |
-|---|---|
-| Evidence record content | Browser `localStorage` (web) / LevelDB store (CLI) — the DApp's local private state. |
-| SHA-256 digest of the record | Same store; witness input only. |
-| Commitment salt | Same store; witness input only. |
+| Value | Where it lives | Who else sees it |
+|---|---|---|
+| Evidence record content | Browser `localStorage` (web) / password-encrypted LevelDB store (CLI). | Nobody — the content is never a witness; it never leaves the store. |
+| SHA-256 digest of the record | Same store; witness input. | The **proving component**: the local proof server (CLI) or whatever prover the wallet is configured with (web). |
+| Commitment salt | Same store; witness input. | Same as the digest. |
+
+The honest phrasing is "never on-chain", not "never transmitted": generating a
+proof requires handing the witnesses (digest and salt — not the content) to
+the prover. With a local proof server that is your own machine; if Lace is
+configured with a remote prover, that operator sees them too.
 
 Two different evidence records produce byte-identical public *shapes* (same
 flags, same counter, equally opaque 32-byte commitments) — asserted directly
@@ -207,14 +234,26 @@ works with nothing installed at all.
 
 ### Level 2 limits, stated plainly
 
-- The circuit proves knowledge of the *committed* record, not that the record
-  is *true* — binding commitments to attested real-world evidence (signatures
-  from an issuing auditor) remains future work, as documented since Level 1.
-- Anyone holding the record (digest + salt) can run `proveEvidence`; the
-  registry does not bind controls to an owner key. Adding an owner public key
-  per control (as in the bboard pattern) is a straightforward extension.
-- Control IDs are public by design; if the *set* of controls under audit is
-  itself sensitive, IDs should be randomized handles.
+- The circuit proves knowledge of the committed `(digest, salt)` pair —
+  nothing more. That the digest is the SHA-256 of an actual document is a
+  client-side convention the circuit cannot check, and that the document is
+  *true* is entirely out of scope. Binding commitments to attested real-world
+  evidence (signatures from an issuing auditor) remains future work, as
+  documented since Level 1.
+- Anyone holding the digest + salt can run `proveEvidence`; the registry does
+  not bind controls to an owner key. Adding an owner public key per control
+  (as in the bboard pattern) is a straightforward extension.
+- Control IDs, circuit names, and transaction timing are public by design;
+  observers learn *which* controls are in scope and *when* they were
+  registered or proven. If the control set itself is sensitive, IDs should be
+  randomized handles.
+- The web app's private state lives in **unencrypted** browser
+  `localStorage`: anyone with access to the browser profile can read the
+  evidence records. The CLI's LevelDB store is password-encrypted; an
+  encrypted browser store is future work.
+- Proving discloses the witnesses (digest + salt) to the proving component —
+  run a local proof server, or understand that a remote prover configured in
+  the wallet sees them.
 
 ---
 
