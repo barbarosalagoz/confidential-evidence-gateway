@@ -25,6 +25,7 @@
     "verify:deploy": "npx tsx scripts/verify-deploy.ts",
     "deploy:evidence": "npx tsx src/deploy-evidence.ts",
     "verify:evidence": "npx tsx scripts/verify-evidence.ts",
+    "submit:evidence": "npx tsx scripts/submit-evidence.ts",
     "claim": "npx tsx scripts/submit-claim.ts"
   },
   "dependencies": {

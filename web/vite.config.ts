@@ -36,6 +36,12 @@ export default defineConfig({
   resolve: {
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.wasm'],
     mainFields: ['browser', 'module', 'main'],
+    // The generated contract module lives OUTSIDE web/ and would otherwise
+    // resolve compact-runtime from the repo-root node_modules while web code
+    // resolves web/node_modules — two WASM instances whose StateValues reject
+    // each other ("expected instance of ..."). Dedupe forces one copy — and
+    // on Vercel the root copy does not even exist.
+    dedupe: ['@midnight-ntwrk/compact-runtime', '@midnight-ntwrk/onchain-runtime-v3'],
     alias: {
       // Named-export and Node-builtin shims for browser bundling.
       'isomorphic-ws': fileURLToPath(new URL('./src/shims/isomorphic-ws.ts', import.meta.url)),

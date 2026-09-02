@@ -11,7 +11,14 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": false,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      // Files imported from outside web/ (src/evidence.ts, the generated
+      // contract d.ts) must resolve this package from web's node_modules —
+      // on Vercel only web's dependencies are installed.
+      "@midnight-ntwrk/compact-runtime": ["./node_modules/@midnight-ntwrk/compact-runtime"]
+    }
   },
   "include": ["src", "../src/evidence.ts", "scripts"]
 }

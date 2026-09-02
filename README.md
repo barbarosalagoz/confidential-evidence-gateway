@@ -82,7 +82,8 @@ the Lace wallet: the **compliance-evidence commitment**.
 | | |
 |---|---|
 | **Network** | Midnight Preprod (public testnet) |
-| **Contract address** | _pending — filled by `npm run deploy:evidence -- --network preprod`_ |
+| **Contract address** | `c421e7a82bf0c793e1a99218152ce6bdafb89f55dc12e2dd046458b6e5991df5` |
+| **Deploy transaction** | `b6c7bf2f14152b82656ed1f8558a9f924f3ed158a048e9ab11d85ba197f4b22f` (block 2376823, 2026-09-02T18:25:36Z) |
 | **Contract source** | [`contracts/evidence.compact`](contracts/evidence.compact) |
 | **Circuits** | `registerEvidence(controlId)`, `proveEvidence(controlId)` |
 | **Live demo** | _pending — Vercel_ |
