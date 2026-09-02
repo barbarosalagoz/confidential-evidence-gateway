@@ -167,11 +167,28 @@ async function main() {
   );
   if (unregisteredUtxos.length > 0) {
     console.log(`  Registering ${unregisteredUtxos.length} NIGHT UTXOs for DUST generation...`);
-    const recipe = await walletCtx.wallet.registerNightUtxosForDustGeneration(
-      unregisteredUtxos,
-      walletCtx.unshieldedKeystore.getPublicKey(),
-      (payload) => walletCtx.unshieldedKeystore.signData(payload),
-    );
+    // The registration fee is itself paid in generated dust, and a freshly
+    // funded wallet may not have generated enough yet. The SDK reports the
+    // exact shortfall ("have X, need Y — use waitForGeneratedDust"), so wait
+    // for the amount it names and retry.
+    let recipe: Awaited<ReturnType<typeof walletCtx.wallet.registerNightUtxosForDustGeneration>> | undefined;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        recipe = await walletCtx.wallet.registerNightUtxosForDustGeneration(
+          unregisteredUtxos,
+          walletCtx.unshieldedKeystore.getPublicKey(),
+          (payload) => walletCtx.unshieldedKeystore.signData(payload),
+        );
+        break;
+      } catch (err: any) {
+        const message = `${err?.message ?? err}`;
+        const needed = /need (\d+)/.exec(message)?.[1];
+        const canWait = typeof (walletCtx.wallet as any).waitForGeneratedDust === 'function';
+        if (!needed || !canWait || attempt >= 10) throw err;
+        console.log(`  Dust below registration fee; waiting for ${needed} generated dust (attempt ${attempt})...`);
+        await (walletCtx.wallet as any).waitForGeneratedDust(unregisteredUtxos, BigInt(needed));
+      }
+    }
     const finalized = await walletCtx.wallet.finalizeRecipe(recipe);
     await walletCtx.wallet.submitTransaction(finalized);
   }
