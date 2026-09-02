@@ -23,6 +23,8 @@
     "verify:compile": "bash scripts/show-compile.sh",
     "address": "npx tsx scripts/show-address.ts",
     "verify:deploy": "npx tsx scripts/verify-deploy.ts",
+    "deploy:evidence": "npx tsx src/deploy-evidence.ts",
+    "verify:evidence": "npx tsx scripts/verify-evidence.ts",
     "claim": "npx tsx scripts/submit-claim.ts"
   },
   "dependencies": {
