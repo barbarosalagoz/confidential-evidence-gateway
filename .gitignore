@@ -15,8 +15,18 @@ build/
 .env.test.local
 .env.production.local
 
-# Contract artifacts
+# Contract artifacts. The Level 2 evidence artifacts ARE committed: the web
+# frontend bundles the generated contract module and serves the keys/zkir, and
+# hosted builds (Vercel/CI) cannot run the Compact compiler.
 contracts/managed/
+!contracts/managed/evidence/
+!contracts/managed/evidence/**
+
+# Web frontend
+web/dist/
+web/public/keys/
+web/public/zkir/
+web/.vite/
 
 # Deployment info
 deployment.json
