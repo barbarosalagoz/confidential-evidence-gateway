@@ -88,10 +88,34 @@ the Lace wallet: the **compliance-evidence commitment**.
 | **Circuits** | `registerEvidence(controlId)`, `proveEvidence(controlId)` |
 | **Live demo** | _pending — Vercel_ |
 
-Verify the on-chain state yourself, with no wallet:
+A real register + prove cycle has been executed on Preprod:
+
+| | |
+|---|---|
+| `registerEvidence(1001)` | tx `e2ccd1b387be04596212fce377a96e42312f2d721146839515d62ae54b215890` (block 2376875) |
+| `proveEvidence(1001)` | tx `da2c1f110c8e68c1580997ed01898ecb45df0cadbf9be856fa70c98d3b23edcb` (block 2376879) |
+
+What any observer reads back from the chain afterwards — no wallet needed:
+
+```
+totalVerifications : 1
+control 1001
+  commitment : b1c7ffe6e94918035387a6ce9d991ee1ab54e0503d3750b2a03cd4d00c02e30c (opaque)
+  verified   : ✓ proven
+
+evidence contents  : NOT PRESENT — only commitments and verified flags are public
+```
+
+Reproduce that view yourself:
 
 ```bash
 npm run verify:evidence -- --network preprod
+```
+
+Run your own cycle (needs a funded Preprod wallet and the local proof server):
+
+```bash
+npm run submit:evidence -- --network preprod --control 2002 --content "your confidential record"
 ```
 
 ### The Level 2 contract
