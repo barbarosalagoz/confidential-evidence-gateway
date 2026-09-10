@@ -6,7 +6,7 @@ import { EvidenceApi, type PublicRegistryState } from './midnight/evidence-api';
 import { fetchPublicState, type AuditorSnapshot } from './midnight/auditor';
 import { parseControlId, type EvidencePrivateState } from '../../src/evidence';
 import { CredentialsView } from './credentials/CredentialsView';
-import { describeError } from './midnight/errors';
+import { describeError, describeWindowEvent } from './midnight/errors';
 
 type LogEntry = { at: Date; text: string; kind: 'info' | 'ok' | 'err' };
 type Mode = 'evidence' | 'credentials';
@@ -40,6 +40,28 @@ export default function App() {
   useEffect(() => {
     logEnd.current?.scrollIntoView({ behavior: 'smooth' });
   }, [log]);
+
+  // Mirror uncaught errors and unhandled rejections into the activity log.
+  // Wallet-extension channel failures and WASM panics surface here, not in
+  // the promise the SDK hands back — without this they only reach devtools.
+  useEffect(() => {
+    let last = '';
+    let lastAt = 0;
+    const onEvent = (ev: ErrorEvent | PromiseRejectionEvent) => {
+      const line = describeWindowEvent(ev);
+      const now = Date.now();
+      if (line === last && now - lastAt < 2000) return; // collapse bursts of the same error
+      last = line;
+      lastAt = now;
+      addLog(line, 'err');
+    };
+    window.addEventListener('error', onEvent);
+    window.addEventListener('unhandledrejection', onEvent);
+    return () => {
+      window.removeEventListener('error', onEvent);
+      window.removeEventListener('unhandledrejection', onEvent);
+    };
+  }, [addLog]);
 
   const refreshLocal = useCallback(async (current: EvidenceApi) => {
     setLocalState(await current.localRecords());

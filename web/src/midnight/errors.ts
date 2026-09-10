@@ -90,10 +90,46 @@ export function errorHint(layers: ErrorLayer[]): string | null {
   if (/failed assert:/i.test(text)) {
     return 'The circuit\'s own assertion failed during local execution — no transaction was produced.';
   }
+  if (/RuntimeError: unreachable|\bunreachable\b/i.test(text)) {
+    return 'The ledger WASM panicked ("unreachable") inside the proving path — the prover returned something the ledger could not use. Retry; if it repeats, switch proving mode (Lace-delegated ↔ app → proof server).';
+  }
   if (/timeout|timed out/i.test(text)) {
     return 'An operation timed out — remote proving can take 20–60 s for these circuits; try again or switch to a Local proof server.';
   }
   return null;
+}
+
+/**
+ * Rejects if `work` has not settled within `ms`. A WASM panic ("unreachable")
+ * inside the ledger's proving path, or an extension channel that drops
+ * without replying, leaves the promise pending forever — this is the only
+ * way the UI ever learns about it.
+ */
+export function withTimeout<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `${what} timed out after ${Math.round(ms / 1000)}s — no response from the wallet/prover ` +
+              '(a dropped extension channel or a prover-side crash never settles; see the browser console for "unreachable" or "message channel closed").',
+          ),
+        ),
+      ms,
+    );
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
+/** Formats a window `error` / `unhandledrejection` event for the activity log. */
+export function describeWindowEvent(ev: ErrorEvent | PromiseRejectionEvent): string {
+  const reason = 'reason' in ev ? ev.reason : ev.error ?? ev.message;
+  const layers = errorLayers(reason);
+  const head = layers[0];
+  const text = head ? `${head.name}: ${head.message || '(no message)'}` : String(reason);
+  const hint = errorHint(layers);
+  return `[browser ${'reason' in ev ? 'unhandled rejection' : 'uncaught error'}] ${text}${hint ? ` — hint: ${hint}` : ''}`;
 }
 
 /** Multi-line, human-readable rendering for the activity log. */

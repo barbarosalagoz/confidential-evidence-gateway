@@ -29,6 +29,7 @@ import {
 } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import { fromHex, toHex, parseCoinPublicKeyToHex, parseEncPublicKeyToHex } from '@midnight-ntwrk/midnight-js-utils';
 import { localStoragePrivateStateProvider } from './local-private-state-provider';
+import { withTimeout } from './errors';
 import type { PrivateStateProvider } from '@midnight-ntwrk/midnight-js-types';
 
 export type EvidenceCircuitKeys =
@@ -67,12 +68,15 @@ export interface ProvingOptions {
 
 export const DEFAULT_LOCAL_PROOF_SERVER = 'http://localhost:6300';
 
-/** Wraps a stage so failures carry the stage name and timing, with the original as `cause`. */
-async function staged<T>(log: (m: string) => void, stage: string, work: () => Promise<T>): Promise<T> {
+/** Upper bounds per stage; remote proving of these circuits is typically 20–60 s. */
+export const STAGE_TIMEOUT_MS = { proving: 180_000, balancing: 120_000, submitting: 90_000 } as const;
+
+/** Wraps a stage so failures carry the stage name and timing (with the original as `cause`) and can never hang silently. */
+async function staged<T>(log: (m: string) => void, stage: string, work: () => Promise<T>, timeoutMs: number): Promise<T> {
   const started = performance.now();
-  log(`${stage}: started`);
+  log(`${stage}: started (timeout ${Math.round(timeoutMs / 1000)}s)`);
   try {
-    const result = await work();
+    const result = await withTimeout(work(), timeoutMs, stage);
     log(`${stage}: done in ${((performance.now() - started) / 1000).toFixed(1)}s`);
     return result;
   } catch (err) {
@@ -129,7 +133,8 @@ export async function buildProviders(
   // duration, and a failure names the stage — the SDK's own wrapper only
   // says "submitting scoped transaction".
   const proofProvider: ProofProvider = {
-    proveTx: (unprovenTx, cfg) => staged(log, 'proving', () => rawProofProvider.proveTx(unprovenTx, cfg)),
+    proveTx: (unprovenTx, cfg) =>
+      staged(log, 'proving', () => rawProofProvider.proveTx(unprovenTx, cfg), STAGE_TIMEOUT_MS.proving),
   };
 
   const shielded = await api.getShieldedAddresses();
@@ -141,24 +146,34 @@ export async function buildProviders(
     getEncryptionPublicKey: () => encryptionPublicKeyHex,
     balanceTx(tx: UnboundTransaction, ttl?: Date): Promise<FinalizedTransaction> {
       void ttl; // the wallet applies its own TTL policy
-      return staged(log, 'balancing (wallet)', async () => {
-        const { tx: balanced } = await api.balanceUnsealedTransaction(toHex(tx.serialize()));
-        return Transaction.deserialize<SignatureEnabled, Proof, Binding>(
-          'signature',
-          'proof',
-          'binding',
-          fromHex(balanced),
-        ) as FinalizedTransaction;
-      });
+      return staged(
+        log,
+        'balancing (wallet)',
+        async () => {
+          const { tx: balanced } = await api.balanceUnsealedTransaction(toHex(tx.serialize()));
+          return Transaction.deserialize<SignatureEnabled, Proof, Binding>(
+            'signature',
+            'proof',
+            'binding',
+            fromHex(balanced),
+          ) as FinalizedTransaction;
+        },
+        STAGE_TIMEOUT_MS.balancing,
+      );
     },
   };
 
   const midnightProvider: MidnightProvider = {
     submitTx(tx: FinalizedTransaction): Promise<TransactionId> {
-      return staged(log, 'submitting (wallet)', async () => {
-        await api.submitTransaction(toHex(tx.serialize()));
-        return tx.identifiers()[0];
-      });
+      return staged(
+        log,
+        'submitting (wallet)',
+        async () => {
+          await api.submitTransaction(toHex(tx.serialize()));
+          return tx.identifiers()[0];
+        },
+        STAGE_TIMEOUT_MS.submitting,
+      );
     },
   };
 
