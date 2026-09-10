@@ -68,7 +68,10 @@ export function errorLayers(err: unknown): ErrorLayer[] {
 /** Actionable hints for failure signatures observed against Lace + Preprod. */
 export function errorHint(layers: ErrorLayer[]): string | null {
   const text = layers.map((l) => `${l.name} ${l.message} ${l.body ?? ''} ${l.code ?? ''}`).join(' | ');
-  if (/message channel closed|Extension context invalidated|Receiving end does not exist|disconnected port/i.test(text)) {
+  if (
+    /message channel closed|Extension context invalidated|Receiving end does not exist|disconnected port/i.test(text) ||
+    /proving failed after [\d.]+s: \(empty error from the wallet\/prover\)/.test(text)
+  ) {
     return (
       'The Lace extension\'s message channel closed before it answered — typically a long remote proving ' +
       'round-trip outliving the connector call. Retry; if it repeats, set Lace\'s proof server to Local ' +
