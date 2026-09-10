@@ -291,6 +291,7 @@ who they are. A **verifier** reads the outcome from public state alone.
 | **Circuits** | `issueCredential(credentialId, typeId, expiry)`, `revokeCredential(credentialId)`, `proveCredential(credentialId)`; pure `derivePk(sk, domain)` |
 | **Deployment record** | [`deployments/credentials.preprod.json`](deployments/credentials.preprod.json) |
 | **Live demo** | [confidential-evidence-gateway-swvq.vercel.app](https://confidential-evidence-gateway-swvq.vercel.app) — "Level 3 · Confidential credentials" |
+| **Demo video (Level 3)** | [youtu.be/3lW_PqdlMS4](https://youtu.be/3lW_PqdlMS4) |
 
 **Real lifecycle executed on Preprod** (issuer and holder both driven from
 this repo's CLI):
@@ -303,12 +304,23 @@ this repo's CLI):
 | `issueCredential(7002, type 1, expiry 2027-03-31)` | tx `68d52eb87d1d73505500939be7995890bdd4e077c75e4f8558ae145260aaddbc` (block 2486723) |
 | `proveCredential(7002)` — holder proves: exists, not revoked, not expired at block time, I hold it | tx `19a5de7445fe1a6cb9bf08bf806fca381490db9cab88fe1df1ffbad601dcc9e4` (block 2486739) |
 
-Observer readback after those steps (`npm run verify:credentials -- --network preprod`,
+**Real lifecycle driven from the browser with Lace** (Preprod, 2026-09-10 —
+the run in the demo video). The issuer (CLI) issued 7003 to the Lace
+holder's public key; everything after that happened in the web app:
+
+| Step | Result |
+|---|---|
+| `issueCredential(7003, type 1, expiry 2027-03-31)` — CLI, `--holder-pk` = the Lace holder's key | tx `480f103f75d0e9701b0adda203a1a2b122dbeafa1dc82ff38dd2dc8fa265c59b` (block 2493825) |
+| `proveCredential(7003)` — **Holder panel, Lace wallet** | tx `626415dda4226a6fd34dc9660d95bf2780bd4277732e06f246c9deb2cf1d3927` (block 2494535) |
+| `issueCredential(7004)` — **Issuer panel, Lace wallet** | tx `defc86b258543cf40f1e224fca759a4b478af1039626bca6b4d5cf7350499b35` (block 2494549) |
+| `proveCredential(7004)` — **Holder panel, Lace wallet** | tx `24dc8132a0c2787991747bf22becc934cb8320c3d698ca034a269be8f7a31c59` (block 2494562) |
+
+Observer readback after all of the above (`npm run verify:credentials -- --network preprod`,
 no wallet):
 
 ```
 issuerPk               : a397b50edda3ba9afa4b0814857e799470840038d7a4676ce05df93f839fc10f
-totalCredentialProofs  : 1
+totalCredentialProofs  : 3
 credential 7001
   type       : 1
   expiry     : 2027-03-31T00:00:00.000Z
@@ -323,11 +335,27 @@ credential 7002
   revoked    : false
   verified   : true
   status     : valid
+credential 7003
+  type       : 1
+  expiry     : 2027-03-31T00:00:00.000Z
+  commitment : 298ec8b09df0c76e452d6690268de255acd1fc77f606bba86f9a0f49eb53e181 (opaque)
+  revoked    : false
+  verified   : true
+  status     : valid
+credential 7004
+  type       : 1
+  expiry     : 2026-12-09T23:59:59.000Z
+  commitment : d611cae67c83c61292f3854f96924180df0d6842223846b2d8cfe49f9f888bb2 (opaque)
+  revoked    : false
+  verified   : true
+  status     : valid
 content / score / holder identity : NOT PRESENT
 ```
 
-Both credentials carry the same private content (score 92/100) — their
-commitments are unrelated bytes, and nothing public says so.
+7001, 7002 and 7003 carry the same private content (score 92/100) — their
+commitments are unrelated bytes, and nothing public says so. (Each block's
+state above was read back from the indexer at that block, which is how the
+per-transaction attribution was made.)
 
 ### The Level 3 contract
 
@@ -475,8 +503,35 @@ npm run credentials -- --network preprod revoke --credential 7001
 npm run verify:credentials -- --network preprod        # observer view, no wallet
 ```
 
-Tests: `npm test` (Level 1–3 contract suites, 47 tests) and
-`npm test --prefix web` (app tests). CI runs both on every push.
+Tests: `npm test` (Level 1–3 contract suites, 52 tests) and
+`npm test --prefix web` (app tests, 39). CI runs both on every push.
+
+### What we learned building Level 3
+
+- **A Node `Buffer` inside a third-party Bech32m parser broke the Lace join.**
+  `@midnight-ntwrk/wallet-sdk-address-format` reads the bare `Buffer` global
+  while parsing the Bech32m keys Lace returns; hex keys never hit it, so
+  every non-Lace test passed. Fixed with a first-import polyfill and a
+  browser-environment guard test that reproduces the failure on a real
+  Bech32m key.
+- **Lace's extension message channel drops on long remote proofs.** A ~20 s
+  round-trip to the hosted prover outlived the connector call and surfaced as
+  an empty error. The app now logs each stage (proving / balancing /
+  submission) with timing and offers a proving-mode switch: Lace-delegated,
+  or the app calling a proof server (local container) directly.
+- **Check the commitment before spending a proof.** A holder-side mismatch
+  (wrong key in that browser profile, or a stray newline in pasted content)
+  only showed up as "not the holder" after proving. The Holder panel's
+  pre-flight recomputes the commitment from local state and compares it with
+  the chain, naming the inputs to check.
+- **Per-stage timeouts, after a WASM panic left proving hanging.** A bad
+  prover response made the ledger WASM hit `unreachable` and the proving
+  promise never settled. Stages now time out with a named error, and the
+  page's uncaught errors are mirrored into the activity log.
+- **CLI and web share one digest/commitment path, pinned by a test.**
+  `createCredentialRecordFromMaterial` and `credentialCommitmentHex` are the
+  only implementations; a cross-implementation test anchors them (helper,
+  circuit and holder path) to a real Preprod commitment (credential 7003).
 
 ---
 
