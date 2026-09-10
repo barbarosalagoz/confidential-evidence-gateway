@@ -8,6 +8,8 @@
   "scripts": {
     "compile": "compact compile contracts/counter.compact contracts/managed/counter",
     "compile:evidence": "compact compile contracts/evidence.compact contracts/managed/evidence",
+    "compile:credentials": "compact compile contracts/credentials.compact contracts/managed/credentials",
+    "compile:all": "npm run compile && npm run compile:evidence && npm run compile:credentials",
     "build": "npx tsc --noEmit || true",
     "setup": "npx tsx src/setup.ts",
     "deploy": "npx tsx src/deploy.ts",

@@ -1,3 +1,5 @@
 # Compiled ZK artifacts are byte-exact binaries; never EOL-convert or diff them.
 contracts/managed/evidence/keys/** -text -diff
 contracts/managed/evidence/zkir/*.bzkir -text -diff
+contracts/managed/credentials/keys/** -text -diff
+contracts/managed/credentials/zkir/*.bzkir -text -diff
