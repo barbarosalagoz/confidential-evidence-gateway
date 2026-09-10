@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NETWORK_ID, defaultCredentialsDeployment } from '../config';
 import type { WalletSession } from '../midnight/wallet';
-import { buildProviders } from '../midnight/providers';
+import { buildProviders, DEFAULT_LOCAL_PROOF_SERVER, type ProvingMode } from '../midnight/providers';
+import { describeError } from '../midnight/errors';
 import { CredentialsApi, type CredentialRegistryState } from '../midnight/credentials-api';
 import { fetchCredentialPublicState, type VerifierSnapshot } from '../midnight/auditor';
 import { parseUint64, isoToEpochSeconds, type CredentialPrivateState } from '../../../src/credentials';
@@ -17,6 +18,20 @@ type Log = (text: string, kind?: 'info' | 'ok' | 'err') => void;
 export function CredentialsView({ session, addLog }: { session: WalletSession | null; addLog: Log }) {
   const deployment = defaultCredentialsDeployment();
   const [contractAddress, setContractAddress] = useState(deployment?.contractAddress ?? '');
+  const [provingMode, setProvingMode] = useState<ProvingMode>(() => {
+    try {
+      return (localStorage.getItem('evidence-gateway/proving-mode') as ProvingMode) || 'wallet';
+    } catch {
+      return 'wallet';
+    }
+  });
+  const [proofServerUrl, setProofServerUrl] = useState(() => {
+    try {
+      return localStorage.getItem('evidence-gateway/proof-server-url') || DEFAULT_LOCAL_PROOF_SERVER;
+    } catch {
+      return DEFAULT_LOCAL_PROOF_SERVER;
+    }
+  });
   const [api, setApi] = useState<CredentialsApi | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [local, setLocal] = useState<CredentialPrivateState>({ credentials: {} });
@@ -67,7 +82,10 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
     try {
       await fn();
     } catch (err) {
-      addLog(err instanceof Error ? err.message : String(err), 'err');
+      // Full cause chain + hint: the SDK wraps wallet/prover failures in a
+      // generic "scoped transaction" error whose inner message may be empty.
+      describeError(err, label).forEach((line, i) => addLog(line, i === 0 ? 'err' : 'info'));
+      console.error(`[${label}]`, err);
     } finally {
       setBusy(null);
     }
@@ -78,10 +96,19 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
       if (!session) throw new Error('Connect the wallet first.');
       const address = contractAddress.trim();
       if (!address) throw new Error('Enter the credentials registry address.');
-      addLog('Building providers for the credentials registry...');
+      addLog(`Building providers for the credentials registry (proving mode: ${provingMode === 'wallet' ? 'Lace-delegated' : `app → ${proofServerUrl}`})...`);
+      try {
+        localStorage.setItem('evidence-gateway/proving-mode', provingMode);
+        localStorage.setItem('evidence-gateway/proof-server-url', proofServerUrl);
+      } catch {
+        /* per-viewer convenience only */
+      }
       // Separate providers instance: private-state scope must not be shared
       // with the Level 2 evidence contract.
-      const providers = await buildProviders(session.api, NETWORK_ID, addLog);
+      const providers = await buildProviders(session.api, NETWORK_ID, addLog, {
+        mode: provingMode,
+        proofServerUrl,
+      });
       const joined = await CredentialsApi.join(providers, address, NETWORK_ID);
       setApi(joined);
       const state = await joined.localState();
@@ -203,6 +230,23 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
           <p className="sub">Issuer and Holder actions need the connected wallet; the Verifier does not.</p>
           <label>Deployed credentials registry address ({NETWORK_ID})</label>
           <input type="text" value={contractAddress} onChange={(e) => setContractAddress(e.target.value)} placeholder="contract address…" />
+          <label style={{ marginTop: 10 }}>Proving mode</label>
+          <div className="row" style={{ gap: 16 }}>
+            <label style={{ margin: 0, color: 'var(--text)' }}>
+              <input type="radio" name="proving" checked={provingMode === 'wallet'} onChange={() => setProvingMode('wallet')} />{' '}
+              Lace-delegated (Lace uses its own proof-server setting)
+            </label>
+            <label style={{ margin: 0, color: 'var(--text)' }}>
+              <input type="radio" name="proving" checked={provingMode === 'proof-server'} onChange={() => setProvingMode('proof-server')} />{' '}
+              App → proof server directly
+            </label>
+          </div>
+          {provingMode === 'proof-server' && (
+            <>
+              <label style={{ marginTop: 6 }}>Proof server URL (local container: {DEFAULT_LOCAL_PROOF_SERVER})</label>
+              <input type="text" value={proofServerUrl} onChange={(e) => setProofServerUrl(e.target.value)} />
+            </>
+          )}
           <div className="row">
             <button onClick={join} disabled={!session || busy !== null}>
               {busy === 'join' ? <><span className="spinner" />Joining…</> : session ? 'Join registry' : 'Connect wallet to join'}

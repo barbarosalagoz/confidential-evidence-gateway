@@ -6,6 +6,7 @@ import { EvidenceApi, type PublicRegistryState } from './midnight/evidence-api';
 import { fetchPublicState, type AuditorSnapshot } from './midnight/auditor';
 import { parseControlId, type EvidencePrivateState } from '../../src/evidence';
 import { CredentialsView } from './credentials/CredentialsView';
+import { describeError } from './midnight/errors';
 
 type LogEntry = { at: Date; text: string; kind: 'info' | 'ok' | 'err' };
 type Mode = 'evidence' | 'credentials';
@@ -127,7 +128,8 @@ export default function App() {
       }
       await refreshLocal(api);
     } catch (err) {
-      addLog(err instanceof Error ? err.message : String(err), 'err');
+      describeError(err, which).forEach((line, i) => addLog(line, i === 0 ? 'err' : 'info'));
+      console.error(`[${which}]`, err);
     } finally {
       setBusy(null);
     }

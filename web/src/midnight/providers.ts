@@ -49,23 +49,62 @@ export type EvidenceProviders = {
   midnightProvider: MidnightProvider;
 };
 
+/**
+ * How proofs are produced.
+ *  - 'wallet': delegate to Lace via getProvingProvider() (Lace talks to the
+ *    proof server it is configured with — local or remote).
+ *  - 'proof-server': this app calls a proof server directly over HTTP
+ *    (default http://localhost:6300 — the local container; CORS verified for
+ *    this origin). Bypasses the extension's message channel entirely.
+ */
+export type ProvingMode = 'wallet' | 'proof-server';
+
+export interface ProvingOptions {
+  mode: ProvingMode;
+  /** Only for 'proof-server'; falls back to the wallet's advertised proverServerUri. */
+  proofServerUrl?: string;
+}
+
+export const DEFAULT_LOCAL_PROOF_SERVER = 'http://localhost:6300';
+
+/** Wraps a stage so failures carry the stage name and timing, with the original as `cause`. */
+async function staged<T>(log: (m: string) => void, stage: string, work: () => Promise<T>): Promise<T> {
+  const started = performance.now();
+  log(`${stage}: started`);
+  try {
+    const result = await work();
+    log(`${stage}: done in ${((performance.now() - started) / 1000).toFixed(1)}s`);
+    return result;
+  } catch (err) {
+    const elapsed = ((performance.now() - started) / 1000).toFixed(1);
+    const inner = err instanceof Error ? err : new Error(String(err));
+    throw new Error(`${stage} failed after ${elapsed}s: ${inner.message || '(empty error from the wallet/prover)'}`, {
+      cause: err,
+    });
+  }
+}
+
 async function makeProofProvider(
   api: ConnectedAPI,
   zkConfigProvider: FetchZkConfigProvider<EvidenceCircuitKeys>,
-): Promise<{ proofProvider: ProofProvider; mode: 'wallet' | 'proof-server' }> {
+  proving: ProvingOptions,
+  log: (m: string) => void,
+): Promise<{ proofProvider: ProofProvider; description: string }> {
+  const config = await api.getConfiguration();
+  if (proving.mode === 'proof-server') {
+    const url = proving.proofServerUrl?.trim() || config.proverServerUri || DEFAULT_LOCAL_PROOF_SERVER;
+    return { proofProvider: httpClientProofProvider(url, zkConfigProvider), description: `app → proof server ${url}` };
+  }
   try {
     const provingProvider = await api.getProvingProvider(zkConfigProvider.asKeyMaterialProvider());
-    return { proofProvider: createProofProvider(provingProvider), mode: 'wallet' };
+    return {
+      proofProvider: createProofProvider(provingProvider),
+      description: 'delegated to the wallet (Lace proves with its own configured proof server)',
+    };
   } catch (err) {
-    const config = await api.getConfiguration();
-    if (!config.proverServerUri) {
-      throw new Error(
-        'Wallet offers no proving provider and no proof server URI. ' +
-          'Configure a proof server in Lace, then reconnect. ' +
-          `(getProvingProvider failed: ${err instanceof Error ? err.message : String(err)})`,
-      );
-    }
-    return { proofProvider: httpClientProofProvider(config.proverServerUri, zkConfigProvider), mode: 'proof-server' };
+    log(`Wallet proving provider unavailable (${err instanceof Error ? err.message : String(err)}); falling back.`);
+    const url = config.proverServerUri || DEFAULT_LOCAL_PROOF_SERVER;
+    return { proofProvider: httpClientProofProvider(url, zkConfigProvider), description: `app → proof server ${url} (fallback)` };
   }
 }
 
@@ -73,17 +112,25 @@ export async function buildProviders(
   api: ConnectedAPI,
   networkId: string,
   log: (message: string) => void,
+  proving: ProvingOptions = { mode: 'wallet' },
 ): Promise<EvidenceProviders> {
   const config = await api.getConfiguration();
-  log(`Wallet services — indexer: ${config.indexerUri}`);
+  log(`Wallet services — indexer: ${config.indexerUri}${config.proverServerUri ? ` · wallet proverServerUri: ${config.proverServerUri}` : ''}`);
 
   const zkConfigProvider = new FetchZkConfigProvider<EvidenceCircuitKeys>(
     window.location.origin,
     fetch.bind(window),
   );
 
-  const { proofProvider, mode } = await makeProofProvider(api, zkConfigProvider);
-  log(mode === 'wallet' ? 'Proving delegated to the wallet.' : 'Proving via configured proof server.');
+  const { proofProvider: rawProofProvider, description } = await makeProofProvider(api, zkConfigProvider, proving, log);
+  log(`Proving: ${description}.`);
+
+  // Stage instrumentation: proving, balancing and submission each log their
+  // duration, and a failure names the stage — the SDK's own wrapper only
+  // says "submitting scoped transaction".
+  const proofProvider: ProofProvider = {
+    proveTx: (unprovenTx, cfg) => staged(log, 'proving', () => rawProofProvider.proveTx(unprovenTx, cfg)),
+  };
 
   const shielded = await api.getShieldedAddresses();
   const coinPublicKeyHex = parseCoinPublicKeyToHex(shielded.shieldedCoinPublicKey, networkId);
@@ -92,22 +139,26 @@ export async function buildProviders(
   const walletProvider: WalletProvider = {
     getCoinPublicKey: () => coinPublicKeyHex,
     getEncryptionPublicKey: () => encryptionPublicKeyHex,
-    async balanceTx(tx: UnboundTransaction, ttl?: Date): Promise<FinalizedTransaction> {
+    balanceTx(tx: UnboundTransaction, ttl?: Date): Promise<FinalizedTransaction> {
       void ttl; // the wallet applies its own TTL policy
-      const { tx: balanced } = await api.balanceUnsealedTransaction(toHex(tx.serialize()));
-      return Transaction.deserialize<SignatureEnabled, Proof, Binding>(
-        'signature',
-        'proof',
-        'binding',
-        fromHex(balanced),
-      ) as FinalizedTransaction;
+      return staged(log, 'balancing (wallet)', async () => {
+        const { tx: balanced } = await api.balanceUnsealedTransaction(toHex(tx.serialize()));
+        return Transaction.deserialize<SignatureEnabled, Proof, Binding>(
+          'signature',
+          'proof',
+          'binding',
+          fromHex(balanced),
+        ) as FinalizedTransaction;
+      });
     },
   };
 
   const midnightProvider: MidnightProvider = {
-    async submitTx(tx: FinalizedTransaction): Promise<TransactionId> {
-      await api.submitTransaction(toHex(tx.serialize()));
-      return tx.identifiers()[0];
+    submitTx(tx: FinalizedTransaction): Promise<TransactionId> {
+      return staged(log, 'submitting (wallet)', async () => {
+        await api.submitTransaction(toHex(tx.serialize()));
+        return tx.identifiers()[0];
+      });
     },
   };
 
