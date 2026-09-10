@@ -1,13 +1,19 @@
 # Confidential Evidence Gateway
 
+[![CI](https://github.com/barbarosalagoz/confidential-evidence-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/barbarosalagoz/confidential-evidence-gateway/actions/workflows/ci.yml)
+
 **Prove a private compliance score meets a public policy threshold — without
 revealing the score.** (Level 1)
 
 **Prove a valid evidence record exists for a compliance control — without
 revealing the record.** (Level 2)
 
-A Midnight Network smart contract suite, CLI and web DApp. Levels 1 and 2 of
-the Rise In / Midnight Network challenge, built on Midnight **Preprod** (public
+**An issuer registers confidential compliance credentials; a holder proves
+one is valid — unrevoked and unexpired at block time — without revealing the
+score or who they are.** (Level 3)
+
+A Midnight Network smart contract suite, CLI and web DApp. Levels 1–3 of the
+Rise In / Midnight Network challenge, built on Midnight **Preprod** (public
 testnet, test tokens only).
 
 **Live demo:** <https://confidential-evidence-gateway-swvq.vercel.app> ·
@@ -254,6 +260,223 @@ works with nothing installed at all.
 - Proving discloses the witnesses (digest + salt) to the proving component —
   run a local proof server, or understand that a remote prover configured in
   the wallet sees them.
+
+---
+
+## Level 3 — Confidential Compliance Credentials
+
+Level 3 adds roles and time. An **issuer** (e.g. an audit firm) registers
+credentials for **holders** (e.g. suppliers); a holder later proves, from
+their own wallet, that they hold a credential of a given type that is
+**not revoked** and **not expired at the current block time** — without
+revealing the credential's content (the audit score), and without revealing
+who they are. A **verifier** reads the outcome from public state alone.
+
+| Role | Does | Needs |
+|---|---|---|
+| Issuer | `issueCredential`, `revokeCredential` | the issuer secret key (checked in-circuit against the on-chain `issuerPk`) |
+| Holder | `proveCredential` | their holder secret key + the credential material (content, salt) received from the issuer out-of-band |
+| Verifier | reads public state | nothing — no wallet |
+
+### Level 3 deployment
+
+| | |
+|---|---|
+| **Network** | Midnight Preprod (public testnet) |
+| **Contract address** | `0fed435f0d6fe479753726feffeb7f4856ddea9c37ea1e8031ec089c1f28bcce` |
+| **Issuer public key** | `a397b50edda3ba9afa4b0814857e799470840038d7a4676ce05df93f839fc10f` |
+| **Deploy transaction** | `f75419404d870010c4ab15b4ffa784c4503817aae0f97663fdd83569756df6d2` (block 2486634, 2026-09-10T09:27:18Z) |
+| **Explorer** | [preprod.midnightexplorer.com](https://preprod.midnightexplorer.com) — search the contract address or tx hashes |
+| **Contract source** | [`contracts/credentials.compact`](contracts/credentials.compact) |
+| **Circuits** | `issueCredential(credentialId, typeId, expiry)`, `revokeCredential(credentialId)`, `proveCredential(credentialId)`; pure `derivePk(sk, domain)` |
+| **Deployment record** | [`deployments/credentials.preprod.json`](deployments/credentials.preprod.json) |
+| **Live demo** | [confidential-evidence-gateway-swvq.vercel.app](https://confidential-evidence-gateway-swvq.vercel.app) — "Level 3 · Confidential credentials" |
+
+**Real lifecycle executed on Preprod** (issuer and holder both driven from
+this repo's CLI):
+
+| Step | Result |
+|---|---|
+| `issueCredential(7001, type 1, expiry 2027-03-31)` | tx `acba359f7abd759ea70bf6db4db39e2af0bdcf52e8ad7b01d0bba8ef251b0c2b` (block 2486658) |
+| `revokeCredential(7001)` | tx `5fb07614c004f7cd98341894f96fa126e628252d37c9c110d3b3987377bdbdee` (block 2486683) |
+| `proveCredential(7001)` after revocation | **no transaction** — proving aborted locally with `failed assert: credential revoked` (the ledger's revoked set is consulted in-circuit) |
+| `issueCredential(7002, type 1, expiry 2027-03-31)` | tx `68d52eb87d1d73505500939be7995890bdd4e077c75e4f8558ae145260aaddbc` (block 2486723) |
+| `proveCredential(7002)` — holder proves: exists, not revoked, not expired at block time, I hold it | tx `19a5de7445fe1a6cb9bf08bf806fca381490db9cab88fe1df1ffbad601dcc9e4` (block 2486739) |
+
+Observer readback after those steps (`npm run verify:credentials -- --network preprod`,
+no wallet):
+
+```
+issuerPk               : a397b50edda3ba9afa4b0814857e799470840038d7a4676ce05df93f839fc10f
+totalCredentialProofs  : 1
+credential 7001
+  type       : 1
+  expiry     : 2027-03-31T00:00:00.000Z
+  commitment : c9b2fd1a5cc0094f9ebec5bb2c0ec231075a9af4d2ac0479109e562dcf99d68f (opaque)
+  revoked    : true
+  verified   : false
+  status     : revoked
+credential 7002
+  type       : 1
+  expiry     : 2027-03-31T00:00:00.000Z
+  commitment : 6c924fc24d150a7f7e4c46a8a29320c570f062aaa5518c1fe056272e0478312f (opaque)
+  revoked    : false
+  verified   : true
+  status     : valid
+content / score / holder identity : NOT PRESENT
+```
+
+Both credentials carry the same private content (score 92/100) — their
+commitments are unrelated bytes, and nothing public says so.
+
+### The Level 3 contract
+
+```compact
+export ledger issuerPk: Bytes<32>;
+export ledger credentialCommitments: Map<Uint<64>, Bytes<32>>;   // id → commit([digest, holderPk], salt)
+export ledger credentialTypes: Map<Uint<64>, Uint<64>>;
+export ledger credentialExpiry: Map<Uint<64>, Uint<64>>;         // seconds since epoch
+export ledger revokedCredentials: Set<Uint<64>>;
+export ledger verifiedCredentials: Map<Uint<64>, Boolean>;
+export ledger totalCredentialProofs: Counter;
+
+witness issuerSecretKey(): Bytes<32>;
+witness holderSecretKey(): Bytes<32>;
+witness holderPublicKey(credentialId: Uint<64>): Bytes<32>;
+witness credentialDigest(credentialId: Uint<64>): Bytes<32>;
+witness credentialSalt(credentialId: Uint<64>): Bytes<32>;
+
+export circuit derivePk(sk: Bytes<32>, domain: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([domain, sk]);
+}
+
+export circuit issueCredential(credentialId: Uint<64>, typeId: Uint<64>, expiry: Uint<64>): [] {
+  assert(derivePk(issuerSecretKey(), pad(32, "cred:issuer")) == issuerPk, "caller is not the issuer");
+  assert(!credentialCommitments.member(disclose(credentialId)), "credential id already issued");
+  const commitment = persistentCommit<Vector<2, Bytes<32>>>(
+    [credentialDigest(credentialId), holderPublicKey(credentialId)], credentialSalt(credentialId));
+  credentialCommitments.insert(disclose(credentialId), disclose(commitment));
+  credentialTypes.insert(disclose(credentialId), disclose(typeId));
+  credentialExpiry.insert(disclose(credentialId), disclose(expiry));
+  verifiedCredentials.insert(disclose(credentialId), false);
+}
+
+export circuit revokeCredential(credentialId: Uint<64>): [] {
+  assert(derivePk(issuerSecretKey(), pad(32, "cred:issuer")) == issuerPk, "caller is not the issuer");
+  assert(credentialCommitments.member(disclose(credentialId)), "unknown credential");
+  revokedCredentials.insert(disclose(credentialId));
+  verifiedCredentials.insert(disclose(credentialId), false);
+}
+
+export circuit proveCredential(credentialId: Uint<64>): [] {
+  assert(credentialCommitments.member(disclose(credentialId)), "unknown credential");
+  assert(!revokedCredentials.member(disclose(credentialId)), "credential revoked");
+  assert(blockTimeLt(credentialExpiry.lookup(disclose(credentialId))), "credential expired");
+  const holderPk = derivePk(holderSecretKey(), pad(32, "cred:holder"));
+  const commitment = persistentCommit<Vector<2, Bytes<32>>>(
+    [credentialDigest(credentialId), holderPk], credentialSalt(credentialId));
+  assert(credentialCommitments.lookup(disclose(credentialId)) == commitment, "not the holder of this credential");
+  verifiedCredentials.insert(disclose(credentialId), true);
+  totalCredentialProofs.increment(1);
+}
+```
+
+Three design points worth knowing:
+
+- **"Issuer signature" is a ZK key check, not an on-chain signature.** The
+  issuer's authority is knowledge of the secret key whose domain-separated
+  hash equals `issuerPk`; the check happens inside the circuit, so no
+  signature and no key ever appears in a transaction.
+- **The holder's identity lives inside the commitment.** The holder's public
+  key is a witness (issuer-side private state), never a circuit argument, and
+  it is bound into `persistentCommit([digest, holderPk], salt)`. Proving
+  requires the matching holder secret key, so only the holder can prove — yet
+  the ledger never carries the holder's key.
+- **Expiry is judged by the chain, not by the prover.** `blockTimeLt(expiry)`
+  compares the block's `secondsSinceEpoch` (Ledger 8 block context) with the
+  stored expiry during transcript execution, so a proof generated against a
+  stale clock is rejected at inclusion. Verified against the pinned 0.31.1
+  compiler by compiling and by the block-time-controlled simulator tests.
+
+### Level 3 privacy model — what an observer can and cannot learn
+
+Written against the ledger declarations above, not against the pitch.
+
+**Can learn (public, by design)**
+
+| Fact | Where | Why it is acceptable |
+|---|---|---|
+| The issuer's public key | `issuerPk` | Verifiers must know *whose* credentials these are. |
+| Each credential **ID**, **type ID** and **exact expiry timestamp** | `credentialTypes`, `credentialExpiry` | A verifier needs the policy being attested (type) and validity window. Note the exact expiry can hint at the issue date (e.g. "issued ~1 year before"). |
+| Whether a credential is **revoked** | `revokedCredentials` | Revocation must be observable to be useful. Revocation is public and permanent. |
+| Whether a **valid proof has been presented** and how many proofs in total | `verifiedCredentials`, `totalCredentialProofs` | The observable outcome — the product. |
+| An opaque 32-byte **commitment** per credential | `credentialCommitments` | Hash-based, computationally hiding, binding. Reveals nothing feasible about digest, holder or salt. |
+| **Which circuit** was invoked, **when**, and transaction fees | any contract call | Standard chain metadata. Observers can build a timeline of issuance, revocation and proofs per credential ID. |
+| That *some* wallet submitted each transaction | transaction | This project makes **no claim of wallet-level unlinkability**: whether the paying wallet can be tied to a holder depends on how the wallet balances fees, not on this contract. |
+
+**Cannot learn (never on-chain, in any encoding — asserted by deep-scan tests)**
+
+- The credential **content** and therefore the **score**.
+- The content **digest** and the commitment **salt**.
+- **Who the holder is**: the holder public key is a witness bound inside a
+  salted commitment. Two credentials issued to the same holder have
+  unlinkable commitments (fresh salt each time), so the ledger does not even
+  reveal that they share a holder.
+- The **issuer's and holder's secret keys**.
+- Anything about a proof that **failed locally** — no transaction is produced.
+
+**What a successful `proveCredential` actually establishes**: at the block in
+which it was included, credential `X` existed, was not revoked, had not yet
+reached its expiry (chain-judged), and the submitter knew `(digest, salt,
+holderSecretKey)` consistent with the registered commitment. It does *not*
+establish that the content is true, nor that the digest hashes a real
+document — those are conventions between issuer and holder, outside the
+circuit.
+
+**Limits, stated plainly**
+
+- `verifiedCredentials[X] = true` means "a valid proof was presented at some
+  past block". The contract prevents *new* proofs after expiry or revocation
+  (revocation also resets the flag), but expiry alone does not rewrite
+  history: the verifier view derives *current* status from
+  `revoked → expired → verified` using its own clock, and the CLI/web
+  verifier print exactly that derivation.
+- Block time carries the node's declared error bound
+  (`secondsSinceEpochErr`); expiry precision is seconds, accuracy is the
+  chain's.
+- The issuer key is held in a local file (CLI) and, for the browser demo,
+  imported into unencrypted `localStorage`. A production issuer would keep it
+  in an HSM-backed signer; the contract does not care where it lives.
+- The demo runs issuer and holder in one browser profile, so their private
+  stores coexist; in reality the issuer hands `(content, salt)` to the holder
+  out-of-band and never learns the holder's secret key (only the public key).
+- Proving discloses the witnesses (digest, salt, keys' *derived* values as
+  needed by the circuit) to the proving component — local proof server or the
+  wallet's configured prover.
+
+### Using Level 3
+
+Web (Preprod, Lace on Chrome): open the live demo → connect → **Level 3** →
+join the registry (address pre-filled). Issuer: import the issuer secret key
+(from the deployer's `.credentials-issuer.preprod.key`), enter the holder's
+public key (Holder panel → *Create / load holder key*), type, expiry, and the
+confidential content → **Issue**. Hand the displayed content + salt to the
+holder → Holder: **Store material** → **Prove credential**. Verifier: **Read
+public state** (no wallet). Then Issuer: **Revoke** → the holder's next proof
+fails locally and the verifier shows *revoked*.
+
+CLI (same machine plays both roles):
+
+```bash
+npm run deploy:credentials -- --network preprod
+npm run credentials -- --network preprod issue  --credential 7001 --type 1 --expiry 2027-03-31 --content "SOC2 Type II — score 92/100"
+npm run credentials -- --network preprod prove  --credential 7001
+npm run credentials -- --network preprod revoke --credential 7001
+npm run verify:credentials -- --network preprod        # observer view, no wallet
+```
+
+Tests: `npm test` (Level 1–3 contract suites, 47 tests) and
+`npm test --prefix web` (app tests). CI runs both on every push.
 
 ---
 
