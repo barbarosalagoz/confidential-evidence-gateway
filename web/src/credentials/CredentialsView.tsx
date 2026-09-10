@@ -147,12 +147,30 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
       await api.importCredentialMaterial(id, hContent, hSalt);
       await refreshLocal(api);
       addLog(`Credential ${id} material stored locally (digest + salt + content).`, 'ok');
+      await diagnoseCredential(id);
     });
+
+  /** Pre-flight: compare what this browser would commit to with the chain. */
+  const diagnoseCredential = async (id: bigint) => {
+    if (!api) return;
+    const row = (liveState ?? snapshot?.state)?.rows.find((r) => r.credentialId === id);
+    const d = await api.diagnose(id, row?.commitmentHex ?? null);
+    addLog(`pre-flight ${id}: holder pk ${d.holderPkHex ? d.holderPkHex.slice(0, 16) + '…' : 'MISSING'} · digest ${d.digestHex ? d.digestHex.slice(0, 16) + '…' : 'MISSING'} · salt ${d.saltHex ? d.saltHex.slice(0, 16) + '…' : 'MISSING'}`);
+    if (d.localCommitmentHex && d.onChainCommitmentHex) {
+      addLog(
+        `pre-flight ${id}: local commitment ${d.localCommitmentHex.slice(0, 16)}… vs on-chain ${d.onChainCommitmentHex.slice(0, 16)}… → ${d.matches ? 'MATCH — proof will pass the holder check' : 'MISMATCH — proof would fail; check that the issuer used this exact holder pk, and that content/salt are byte-identical'}`,
+        d.matches ? 'ok' : 'err',
+      );
+    } else if (!d.onChainCommitmentHex) {
+      addLog(`pre-flight ${id}: no on-chain commitment visible yet — read public state and retry.`);
+    }
+  };
 
   const prove = () =>
     run('prove', async () => {
       if (!api) return;
       const id = parseUint64(hCredId, 'credential id');
+      await diagnoseCredential(id);
       addLog(`proveCredential(${id}) — proving: not revoked, not expired at block time, I am the holder…`);
       const receipt = await api.proveCredential(id);
       addLog(`proveCredential confirmed — tx ${receipt.txHash} (block ${receipt.blockHeight})`, 'ok');
@@ -259,6 +277,7 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
               <input type="text" value={hSalt} onChange={(e) => setHSalt(e.target.value)} placeholder="64 hex chars" />
               <div className="row">
                 <button className="secondary" onClick={importMaterial} disabled={busy !== null}>Store material</button>
+                <button className="secondary" onClick={() => run('diagnose', () => diagnoseCredential(parseUint64(hCredId, 'credential id')))} disabled={busy !== null}>Pre-flight check</button>
                 <button onClick={prove} disabled={busy !== null || !holderPk}>{spinner('prove', 'Prove credential')}</button>
               </div>
               {localIds.length > 0 && (

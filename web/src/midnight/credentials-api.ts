@@ -11,6 +11,8 @@ import {
   witnesses,
   createCredentialPrivateState,
   createCredentialRecord,
+  createCredentialRecordFromMaterial,
+  credentialCommitmentHex,
   withCredentialRecord,
   generateSecretKeyHex,
   hexToBytes32,
@@ -22,6 +24,17 @@ import {
   type CredentialPrivateState,
   type CredentialStatus,
 } from '../../../src/credentials';
+
+/** What the holder's machine would commit to, next to what the chain holds. */
+export type CredentialDiagnosis = {
+  credentialId: bigint;
+  holderPkHex: string | null;
+  digestHex: string | null;
+  saltHex: string | null;
+  localCommitmentHex: string | null;
+  onChainCommitmentHex: string | null;
+  matches: boolean | null;
+};
 import type { EvidenceProviders } from './providers';
 import type { TxReceipt } from './evidence-api';
 
@@ -161,17 +174,35 @@ export class CredentialsApi {
 
   // ── Holder ───────────────────────────────────────────────────────────────
 
-  /** Holder stores the material received from the issuer (content or digest + salt). */
+  /** Holder stores the material received from the issuer (content + salt). Same digest path as the CLI. */
   async importCredentialMaterial(credentialId: bigint, content: string, saltHex: string): Promise<void> {
-    hexToBytes32(saltHex.trim(), 'salt');
-    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content)));
-    await this.saveState(
-      withCredentialRecord(await this.localState(), credentialId, {
-        digestHex: bytesToHex(digest),
-        saltHex: saltHex.trim(),
-        content,
-      }),
-    );
+    const record = await createCredentialRecordFromMaterial(content, saltHex);
+    await this.saveState(withCredentialRecord(await this.localState(), credentialId, record));
+  }
+
+  /**
+   * Computes, from this browser's private state, exactly what proveCredential
+   * would commit to — holder pk derived from the stored secret key, the stored
+   * digest and salt — and compares it with the on-chain commitment. Lets the
+   * holder see a mismatch (and which input to check) before spending a proof.
+   */
+  async diagnose(credentialId: bigint, onChainCommitmentHex: string | null): Promise<CredentialDiagnosis> {
+    const state = await this.localState();
+    const record = state.credentials[credentialId.toString()];
+    const holderPkHex = state.holderSecretKeyHex ? derivePk(state.holderSecretKeyHex, HOLDER_DOMAIN) : null;
+    const digestHex = record?.digestHex ?? null;
+    const saltHex = record?.saltHex ?? null;
+    const localCommitmentHex =
+      holderPkHex && digestHex && saltHex ? credentialCommitmentHex(digestHex, holderPkHex, saltHex) : null;
+    return {
+      credentialId,
+      holderPkHex,
+      digestHex,
+      saltHex,
+      localCommitmentHex,
+      onChainCommitmentHex,
+      matches: localCommitmentHex && onChainCommitmentHex ? localCommitmentHex === onChainCommitmentHex : null,
+    };
   }
 
   async proveCredential(credentialId: bigint): Promise<CredentialReceipt> {

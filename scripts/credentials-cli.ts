@@ -20,6 +20,7 @@ import { loadCredentialsContract, credentialsZkConfigPath } from '../src/credent
 import {
   createCredentialPrivateState,
   createCredentialRecord,
+  credentialCommitmentHex,
   withCredentialRecord,
   generateSecretKeyHex,
   hexToBytes32,
@@ -101,10 +102,15 @@ async function main() {
     console.log(`  ✓ issueCredential tx ${tx.public.txHash} (block ${tx.public.blockHeight})`);
     if (externalHolderPk) {
       // The holder needs exactly these two values to store material and prove.
+      // Digest and commitment are printed so the holder's pre-flight check can
+      // be compared value-for-value.
       console.log('\n  ─── Hand-over to the holder (out-of-band; PRIVATE) ───');
       console.log(`  credential id : ${credentialId}`);
-      console.log(`  content       : ${content}`);
+      console.log(`  content       : ${record.content}`);
       console.log(`  salt          : ${record.saltHex}`);
+      console.log(`  digest        : ${record.digestHex}`);
+      console.log(`  holder pk     : ${holderPkHex}`);
+      console.log(`  commitment    : ${credentialCommitmentHex(record.digestHex, holderPkHex, record.saltHex)}`);
     }
   } else {
     await providers.privateStateProvider.set(CREDENTIAL_PRIVATE_STATE_ID, state);

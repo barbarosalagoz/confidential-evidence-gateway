@@ -9,7 +9,12 @@
  *
  * Environment-agnostic (no Node imports) — the browser imports this too.
  */
-import type { WitnessContext } from '@midnight-ntwrk/compact-runtime';
+import {
+  CompactTypeBytes,
+  CompactTypeVector,
+  persistentCommit,
+  type WitnessContext,
+} from '@midnight-ntwrk/compact-runtime';
 import { bytesToHex, hexToBytes32 } from './evidence';
 
 export { bytesToHex, hexToBytes32 };
@@ -156,11 +161,52 @@ export function generateSecretKeyHex(): string {
   return bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
 }
 
-/** Builds a credential's private material from its content. */
+/**
+ * Canonical content bytes: trimmed UTF-8. Issuer (CLI) and holder (browser)
+ * MUST hash identical bytes, and a textarea paste easily adds a trailing
+ * newline — so both sides normalise here and nowhere else.
+ */
+export function canonicalContent(content: string): string {
+  return content.trim();
+}
+
+export async function contentDigestHex(content: string): Promise<string> {
+  const bytes = new TextEncoder().encode(canonicalContent(content));
+  return bytesToHex(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)));
+}
+
+/** Builds a credential's private material from its content (fresh salt). */
 export async function createCredentialRecord(content: string): Promise<CredentialRecord> {
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content)));
   const salt = crypto.getRandomValues(new Uint8Array(32));
-  return { digestHex: bytesToHex(digest), saltHex: bytesToHex(salt), content };
+  return createCredentialRecordFromMaterial(content, bytesToHex(salt));
+}
+
+/**
+ * Rebuilds the record from the material a holder receives out-of-band. The
+ * ONLY digest path for both CLI and web, so they cannot drift.
+ */
+export async function createCredentialRecordFromMaterial(content: string, saltHex: string): Promise<CredentialRecord> {
+  const salt = saltHex.trim().toLowerCase();
+  hexToBytes32(salt, 'salt');
+  return { digestHex: await contentDigestHex(content), saltHex: salt, content: canonicalContent(content) };
+}
+
+const COMMITMENT_TYPE = new CompactTypeVector(2, new CompactTypeBytes(32));
+
+/**
+ * Off-chain replica of the circuit's
+ * `persistentCommit<Vector<2, Bytes<32>>>([digest, holderPk], salt)`.
+ * Pinned against the simulator and a live Preprod commitment in tests, so it
+ * can be used to diagnose a mismatch before proving.
+ */
+export function credentialCommitmentHex(digestHex: string, holderPkHex: string, saltHex: string): string {
+  return bytesToHex(
+    persistentCommit(
+      COMMITMENT_TYPE,
+      [hexToBytes32(digestHex, 'digest'), hexToBytes32(holderPkHex, 'holder public key')],
+      hexToBytes32(saltHex, 'salt'),
+    ),
+  );
 }
 
 const UINT64_MAX = 18446744073709551615n;
