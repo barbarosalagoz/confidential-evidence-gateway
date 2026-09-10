@@ -58,19 +58,21 @@ async function main() {
   const providers = makeProviders(boot, credentialsZkConfigPath, CREDENTIAL_PRIVATE_STATE_STORE_NAME);
   const { module, compiledContract } = await loadCredentialsContract();
 
-  const deployed = await findDeployedContract(providers as any, {
-    contractAddress,
-    compiledContract: compiledContract as any,
-    privateStateId: CREDENTIAL_PRIVATE_STATE_ID,
-    initialPrivateState: createCredentialPrivateState(),
-  });
-
-  // Private state must be written AFTER joining (findDeployedContract writes
-  // initialPrivateState to the store).
+  // findDeployedContract WRITES initialPrivateState to the store on every
+  // join, so the existing state must be read first and passed back in —
+  // otherwise a second run wipes the holder key and credential material.
   providers.privateStateProvider.setContractAddress(contractAddress);
   let state =
     ((await providers.privateStateProvider.get(CREDENTIAL_PRIVATE_STATE_ID)) as CredentialPrivateState | null) ??
     createCredentialPrivateState();
+
+  const deployed = await findDeployedContract(providers as any, {
+    contractAddress,
+    compiledContract: compiledContract as any,
+    privateStateId: CREDENTIAL_PRIVATE_STATE_ID,
+    initialPrivateState: state,
+  });
+  providers.privateStateProvider.setContractAddress(contractAddress);
 
   const keyPath = path.join(repoRoot, `.credentials-issuer.${network}.key`);
   if (fs.existsSync(keyPath)) state = { ...state, issuerSecretKeyHex: fs.readFileSync(keyPath, 'utf-8').trim() };

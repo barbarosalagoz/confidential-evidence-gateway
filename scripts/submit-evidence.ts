@@ -102,20 +102,21 @@ async function main() {
   const providers = await createProviders(walletCtx);
   const { compiledContract } = await loadEvidenceContract();
 
-  const deployed = await findDeployedContract(providers as any, {
-    contractAddress,
-    compiledContract: compiledContract as any,
-    privateStateId: EVIDENCE_PRIVATE_STATE_ID,
-    initialPrivateState: createEvidencePrivateState(),
-  });
-
-  // Store the evidence record AFTER joining: findDeployedContract writes
-  // initialPrivateState to the store, so anything set before it is lost.
-  // (Same order the web frontend uses.)
+  // findDeployedContract writes initialPrivateState to the store on every
+  // join: read the existing records first and pass them back in, so repeated
+  // runs keep earlier controls' material. (Same as the web frontend.)
   providers.privateStateProvider.setContractAddress(contractAddress);
   const existing =
     ((await providers.privateStateProvider.get(EVIDENCE_PRIVATE_STATE_ID)) as EvidencePrivateState | null) ??
     createEvidencePrivateState();
+
+  const deployed = await findDeployedContract(providers as any, {
+    contractAddress,
+    compiledContract: compiledContract as any,
+    privateStateId: EVIDENCE_PRIVATE_STATE_ID,
+    initialPrivateState: existing,
+  });
+  providers.privateStateProvider.setContractAddress(contractAddress);
   const record = await createEvidenceRecord(content);
   await providers.privateStateProvider.set(
     EVIDENCE_PRIVATE_STATE_ID,
