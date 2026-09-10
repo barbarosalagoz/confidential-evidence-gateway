@@ -5,12 +5,15 @@ import { buildProviders } from './midnight/providers';
 import { EvidenceApi, type PublicRegistryState } from './midnight/evidence-api';
 import { fetchPublicState, type AuditorSnapshot } from './midnight/auditor';
 import { parseControlId, type EvidencePrivateState } from '../../src/evidence';
+import { CredentialsView } from './credentials/CredentialsView';
 
 type LogEntry = { at: Date; text: string; kind: 'info' | 'ok' | 'err' };
+type Mode = 'evidence' | 'credentials';
 
 export default function App() {
   const deployment = defaultDeployment();
 
+  const [mode, setMode] = useState<Mode>('credentials');
   const [session, setSession] = useState<WalletSession | null>(null);
   const [api, setApi] = useState<EvidenceApi | null>(null);
   const [contractAddress, setContractAddress] = useState(deployment?.contractAddress ?? '');
@@ -85,7 +88,6 @@ export default function App() {
     }
   };
 
-  // Live public-state subscription once joined.
   useEffect(() => {
     if (!api) return;
     const stop = api.watchPublicState(
@@ -151,175 +153,178 @@ export default function App() {
   return (
     <div className="app">
       <header className="masthead">
-        <h1><span className="moon">🌒</span>Confidential Evidence Gateway</h1>
-        <span className="badge">Midnight {NETWORK_ID} · Level 2</span>
+        <h1><span className="moon">🌓</span>Confidential Evidence Gateway</h1>
+        <span className="badge">Midnight {NETWORK_ID} · Level 3</span>
       </header>
       <p className="tagline">
-        Prove that a valid compliance-evidence record exists for a control — without revealing the
-        record. The chain holds an opaque commitment and a verified flag; the evidence never leaves
-        this browser.
+        Level 2: prove a compliance-evidence record exists for a control without revealing it.
+        Level 3: an issuer registers confidential compliance credentials; a holder proves one is
+        valid — unrevoked and unexpired at block time — without revealing the score or who they are.
       </p>
 
-      <div className="columns">
-        {/* ── Evidence holder ──────────────────────────────────────── */}
-        <section className="panel">
-          <h2>
+      {/* ── Wallet bar (shared by both levels) ─────────────────────── */}
+      <section className="panel walletbar">
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <div>
             <span className={`status-dot ${session ? 'on' : 'off'}`} />
-            Evidence holder
-          </h2>
-          <p className="sub">Connect Lace, join the registry, register and prove evidence.</p>
-
+            {session ? (
+              <span className="addr">{session.walletName} · {session.unshieldedAddress}</span>
+            ) : (
+              <span className="sub" style={{ margin: 0 }}>No wallet connected — verifier/auditor views work regardless.</span>
+            )}
+          </div>
           {!session ? (
             <button onClick={handleConnect} disabled={busy !== null}>
               {busy === 'connect' ? <><span className="spinner" />Connecting…</> : 'Connect Lace wallet'}
             </button>
           ) : (
-            <>
-              <div className="row">
-                <span className="addr">{session.unshieldedAddress}</span>
-              </div>
-              <div className="row">
-                <button className="secondary" onClick={handleDisconnect}>Disconnect</button>
-              </div>
-
-              {!api ? (
-                <>
-                  <label>Deployed registry address ({NETWORK_ID})</label>
-                  <input
-                    type="text"
-                    value={contractAddress}
-                    onChange={(e) => setContractAddress(e.target.value)}
-                    placeholder="contract address…"
-                  />
-                  <div className="row">
-                    <button onClick={handleJoin} disabled={busy !== null}>
-                      {busy === 'join' ? <><span className="spinner" />Joining…</> : 'Join registry'}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="note">
-                    Joined <span className="addr">{api.contractAddress}</span>
-                  </div>
-
-                  <label>Control ID (public)</label>
-                  <input type="text" value={controlId} onChange={(e) => setControlId(e.target.value)} />
-
-                  <label style={{ marginTop: 10 }}>Evidence record (PRIVATE — never transmitted)</label>
-                  <textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="e.g. SOC2 CC6.1 access-control review 2026-Q3: PASSED (audit ref #4471)"
-                  />
-
-                  <div className="row">
-                    <button onClick={() => runCircuit('register')} disabled={busy !== null}>
-                      {busy === 'register' ? <><span className="spinner" />Proving…</> : 'Register evidence'}
-                    </button>
-                    <button className="secondary" onClick={() => runCircuit('prove')} disabled={busy !== null}>
-                      {busy === 'prove' ? <><span className="spinner" />Proving…</> : 'Prove evidence'}
-                    </button>
-                  </div>
-
-                  {localIds.length > 0 && (
-                    <>
-                      <label style={{ marginTop: 12 }}>Local private records (this browser only)</label>
-                      <table className="table">
-                        <thead>
-                          <tr><th>Control</th><th>Where it lives</th></tr>
-                        </thead>
-                        <tbody>
-                          {localIds.map((id) => (
-                            <tr key={id}>
-                              <td>{id}</td>
-                              <td><span className="pill local">localStorage — digest + salt{localState.records[id].content ? ' + content' : ''}</span></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </>
-                  )}
-                </>
-              )}
-            </>
+            <button className="secondary" onClick={handleDisconnect}>Disconnect</button>
           )}
+        </div>
+      </section>
 
-          <label style={{ marginTop: 14 }}>Activity</label>
-          <div className="log">
-            {log.length === 0 && <div>— quiet so far —</div>}
-            {log.map((entry, i) => (
-              <div key={i} className={entry.kind === 'err' ? 'err' : entry.kind === 'ok' ? 'ok' : ''}>
-                <time>{entry.at.toLocaleTimeString()}</time>
-                {entry.text}
-              </div>
-            ))}
-            <div ref={logEnd} />
-          </div>
-        </section>
+      <nav className="modes">
+        <button className={mode === 'credentials' ? 'active' : ''} onClick={() => setMode('credentials')}>
+          Level 3 · Confidential credentials
+        </button>
+        <button className={mode === 'evidence' ? 'active' : ''} onClick={() => setMode('evidence')}>
+          Level 2 · Evidence commitments
+        </button>
+      </nav>
 
-        {/* ── Auditor ─────────────────────────────────────────────── */}
-        <section className="panel">
-          <h2><span className="status-dot on" />Auditor view</h2>
-          <p className="sub">
-            No wallet, no connection — this reads the public ledger from the indexer, exactly what
-            any observer sees.
-          </p>
+      {mode === 'credentials' && <CredentialsView session={session} addLog={addLog} />}
 
-          <label>Registry address to audit</label>
-          <input
-            type="text"
-            value={auditorAddress}
-            onChange={(e) => setAuditorAddress(e.target.value)}
-            placeholder="contract address…"
-          />
-          <div className="row">
-            <button onClick={runAudit} disabled={auditorBusy || !auditorAddress.trim()}>
-              {auditorBusy ? <><span className="spinner" />Reading chain…</> : 'Read public state'}
-            </button>
-          </div>
+      {mode === 'evidence' && (
+        <div className="columns">
+          {/* ── Evidence holder ──────────────────────────────────────── */}
+          <section className="panel">
+            <h2><span className={`status-dot ${api ? 'on' : 'off'}`} />Evidence holder</h2>
+            <p className="sub">Join the registry, register and prove evidence.</p>
 
-          {auditorError && <div className="note" style={{ borderLeftColor: 'var(--err)' }}>{auditorError}</div>}
+            {!session && <p className="sub">Connect the wallet above to register or prove.</p>}
 
-          {auditor && (
-            <>
-              <div className="note">
-                Latest action: tx <span className="addr">{auditor.txHash}</span>
-                {auditor.blockHeight !== null && <> · block {auditor.blockHeight}</>}
-                {auditor.blockTime && <> · {auditor.blockTime}</>}
-              </div>
-              <PublicTable state={auditor.state} />
-            </>
-          )}
+            {session && !api && (
+              <>
+                <label>Deployed registry address ({NETWORK_ID})</label>
+                <input
+                  type="text"
+                  value={contractAddress}
+                  onChange={(e) => setContractAddress(e.target.value)}
+                  placeholder="contract address…"
+                />
+                <div className="row">
+                  <button onClick={handleJoin} disabled={busy !== null}>
+                    {busy === 'join' ? <><span className="spinner" />Joining…</> : 'Join registry'}
+                  </button>
+                </div>
+              </>
+            )}
 
-          {!auditor && publicState && (
-            <>
-              <div className="note">Live view via wallet-side indexer subscription.</div>
-              <PublicTable state={publicState} />
-            </>
-          )}
+            {api && (
+              <>
+                <div className="note">Joined <span className="addr">{api.contractAddress}</span></div>
+                <label>Control ID (public)</label>
+                <input type="text" value={controlId} onChange={(e) => setControlId(e.target.value)} />
+                <label style={{ marginTop: 10 }}>Evidence record (PRIVATE — never transmitted)</label>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="e.g. SOC2 CC6.1 access-control review 2026-Q3: PASSED (audit ref #4471)"
+                />
+                <div className="row">
+                  <button onClick={() => runCircuit('register')} disabled={busy !== null}>
+                    {busy === 'register' ? <><span className="spinner" />Proving…</> : 'Register evidence'}
+                  </button>
+                  <button className="secondary" onClick={() => runCircuit('prove')} disabled={busy !== null}>
+                    {busy === 'prove' ? <><span className="spinner" />Proving…</> : 'Prove evidence'}
+                  </button>
+                </div>
+                {localIds.length > 0 && (
+                  <>
+                    <label style={{ marginTop: 12 }}>Local private records (this browser only)</label>
+                    <table className="table">
+                      <thead><tr><th>Control</th><th>Where it lives</th></tr></thead>
+                      <tbody>
+                        {localIds.map((id) => (
+                          <tr key={id}>
+                            <td>{id}</td>
+                            <td><span className="pill local">localStorage — digest + salt{localState.records[id].content ? ' + content' : ''}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+              </>
+            )}
+          </section>
 
-          <div className="privacy-callout">
-            <div className="grid">
-              <div className="cell public">
-                <h3>Public — on the ledger</h3>
-                <ul>
-                  <li>control IDs</li>
-                  <li>opaque 32-byte commitments</li>
-                  <li>verified flags + proof counter</li>
-                </ul>
-              </div>
-              <div className="cell private">
-                <h3>Private — this browser only</h3>
-                <ul>
-                  <li>the evidence record text</li>
-                  <li>its SHA-256 digest</li>
-                  <li>the commitment salt</li>
-                </ul>
-              </div>
+          {/* ── Auditor ─────────────────────────────────────────────── */}
+          <section className="panel">
+            <h2><span className="status-dot on" />Auditor view</h2>
+            <p className="sub">No wallet, no connection — the public ledger from the indexer, exactly what any observer sees.</p>
+            <label>Registry address to audit</label>
+            <input type="text" value={auditorAddress} onChange={(e) => setAuditorAddress(e.target.value)} placeholder="contract address…" />
+            <div className="row">
+              <button onClick={runAudit} disabled={auditorBusy || !auditorAddress.trim()}>
+                {auditorBusy ? <><span className="spinner" />Reading chain…</> : 'Read public state'}
+              </button>
             </div>
+            {auditorError && <div className="note" style={{ borderLeftColor: 'var(--err)' }}>{auditorError}</div>}
+            {auditor && (
+              <>
+                <div className="note">
+                  Latest action: tx <span className="addr">{auditor.txHash}</span>
+                  {auditor.blockHeight !== null && <> · block {auditor.blockHeight}</>}
+                  {auditor.blockTime && <> · {auditor.blockTime}</>}
+                </div>
+                <PublicTable state={auditor.state} />
+              </>
+            )}
+            {!auditor && publicState && (
+              <>
+                <div className="note">Live view via wallet-side indexer subscription.</div>
+                <PublicTable state={publicState} />
+              </>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* ── Activity log (shared) ─────────────────────────────────── */}
+      <section className="panel" style={{ marginTop: 18 }}>
+        <label>Activity</label>
+        <div className="log">
+          {log.length === 0 && <div>— quiet so far —</div>}
+          {log.map((entry, i) => (
+            <div key={i} className={entry.kind === 'err' ? 'err' : entry.kind === 'ok' ? 'ok' : ''}>
+              <time>{entry.at.toLocaleTimeString()}</time>
+              {entry.text}
+            </div>
+          ))}
+          <div ref={logEnd} />
+        </div>
+      </section>
+
+      <div className="privacy-callout">
+        <div className="grid">
+          <div className="cell public">
+            <h3>Public — on the ledger</h3>
+            <ul>
+              <li>control IDs, credential IDs, credential types and expiries</li>
+              <li>opaque 32-byte commitments; the issuer's public key</li>
+              <li>revoked set, verified flags, proof counters</li>
+            </ul>
           </div>
-        </section>
+          <div className="cell private">
+            <h3>Private — this browser only</h3>
+            <ul>
+              <li>evidence and credential content (e.g. the score)</li>
+              <li>digests and commitment salts</li>
+              <li>holder identity (its public key is inside the commitment); issuer and holder secret keys</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -329,13 +334,9 @@ function PublicTable({ state }: { state: PublicRegistryState }) {
   return (
     <>
       <table className="table">
-        <thead>
-          <tr><th>Control</th><th>Commitment (opaque)</th><th>Status</th></tr>
-        </thead>
+        <thead><tr><th>Control</th><th>Commitment (opaque)</th><th>Status</th></tr></thead>
         <tbody>
-          {state.rows.length === 0 && (
-            <tr><td colSpan={3} style={{ color: 'var(--muted)' }}>Registry is empty.</td></tr>
-          )}
+          {state.rows.length === 0 && <tr><td colSpan={3} style={{ color: 'var(--muted)' }}>Registry is empty.</td></tr>}
           {state.rows.map((row) => (
             <tr key={row.controlId.toString()}>
               <td>{row.controlId.toString()}</td>
@@ -350,8 +351,7 @@ function PublicTable({ state }: { state: PublicRegistryState }) {
         </tbody>
       </table>
       <p className="sub" style={{ marginTop: 8 }}>
-        Total successful proofs: {state.totalVerifications.toString()} — and not one byte of
-        evidence content on-chain.
+        Total successful proofs: {state.totalVerifications.toString()} — and not one byte of evidence content on-chain.
       </p>
     </>
   );

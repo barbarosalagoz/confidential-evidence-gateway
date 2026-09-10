@@ -33,7 +33,18 @@ body {
 .tagline { color: var(--muted); margin: 0 0 22px; max-width: 72ch; }
 
 .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.columns.three { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 1100px) { .columns.three { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .columns { grid-template-columns: 1fr; } }
+
+.walletbar { margin-bottom: 14px; padding: 12px 18px; }
+.walletbar .row { margin: 0; }
+
+.modes { display: flex; gap: 8px; margin: 0 0 16px; }
+.modes button { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+.modes button.active { background: var(--panel-2); color: var(--text); border-color: var(--accent); }
+
+.pill.revoked { background: rgba(248, 113, 113, 0.12); color: var(--err); border: 1px solid rgba(248, 113, 113, 0.4); }
 
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
 .panel h2 { margin: 0 0 4px; font-size: 1.05rem; }
