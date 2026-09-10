@@ -85,15 +85,27 @@ async function main() {
     const typeId = parseUint64(arg('--type') ?? '1', 'type id');
     const expiry = isoToEpochSeconds(arg('--expiry') ?? new Date(Date.now() + 90 * 86400_000).toISOString());
     const content = arg('--content') ?? `SOC2 Type II — audit ${new Date().toISOString().slice(0, 10)} — score 92/100 — CONFIDENTIAL`;
-    const holderPk = module.pureCircuits.derivePk(hexToBytes32(state.holderSecretKeyHex!, 'holder key'), HOLDER_DOMAIN);
-    const record = { ...(await createCredentialRecord(content)), holderPkHex: bytesToHex(holderPk) };
+    // --holder-pk: issue to an external holder (e.g. a browser/Lace holder's
+    // public key). Without it this machine's own holder key is used.
+    const externalHolderPk = arg('--holder-pk');
+    const holderPkHex = externalHolderPk
+      ? bytesToHex(hexToBytes32(externalHolderPk.trim(), 'holder public key'))
+      : bytesToHex(module.pureCircuits.derivePk(hexToBytes32(state.holderSecretKeyHex!, 'holder key'), HOLDER_DOMAIN));
+    const record = { ...(await createCredentialRecord(content)), holderPkHex };
     state = withCredentialRecord(state, credentialId, record);
     await providers.privateStateProvider.set(CREDENTIAL_PRIVATE_STATE_ID, state);
-    console.log(`  Local material stored for credential ${credentialId} (content withheld).`);
+    console.log(`  Local material stored for credential ${credentialId} (holder pk ${holderPkHex.slice(0, 16)}…).`);
     await settleDust();
     console.log('  Calling issueCredential()...');
     const tx = await (deployed as any).callTx.issueCredential(credentialId, typeId, expiry);
     console.log(`  ✓ issueCredential tx ${tx.public.txHash} (block ${tx.public.blockHeight})`);
+    if (externalHolderPk) {
+      // The holder needs exactly these two values to store material and prove.
+      console.log('\n  ─── Hand-over to the holder (out-of-band; PRIVATE) ───');
+      console.log(`  credential id : ${credentialId}`);
+      console.log(`  content       : ${content}`);
+      console.log(`  salt          : ${record.saltHex}`);
+    }
   } else {
     await providers.privateStateProvider.set(CREDENTIAL_PRIVATE_STATE_ID, state);
     await settleDust();
