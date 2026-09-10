@@ -291,7 +291,7 @@ who they are. A **verifier** reads the outcome from public state alone.
 | **Circuits** | `issueCredential(credentialId, typeId, expiry)`, `revokeCredential(credentialId)`, `proveCredential(credentialId)`; pure `derivePk(sk, domain)` |
 | **Deployment record** | [`deployments/credentials.preprod.json`](deployments/credentials.preprod.json) |
 | **Live demo** | [confidential-evidence-gateway-swvq.vercel.app](https://confidential-evidence-gateway-swvq.vercel.app) — "Level 3 · Confidential credentials" |
-| **Demo video (Level 3)** | [youtu.be/RlwQArDBaME](https://youtu.be/RlwQArDBaME) |
+| **Demo video (Level 3)** | [youtu.be/9H6nLkH1iWM](https://youtu.be/9H6nLkH1iWM) |
 
 **Real lifecycle executed on Preprod** (issuer and holder both driven from
 this repo's CLI):
