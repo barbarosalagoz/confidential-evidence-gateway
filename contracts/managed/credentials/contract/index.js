@@ -3,27 +3,27 @@ __compactRuntime.checkRuntimeVersion('0.16.0');
 
 const _descriptor_0 = new __compactRuntime.CompactTypeUnsignedInteger(18446744073709551615n, 8);
 
-const _descriptor_1 = new __compactRuntime.CompactTypeBytes(32);
+const _descriptor_1 = __compactRuntime.CompactTypeBoolean;
 
-const _descriptor_2 = __compactRuntime.CompactTypeBoolean;
+const _descriptor_2 = new __compactRuntime.CompactTypeBytes(32);
 
 const _descriptor_3 = new __compactRuntime.CompactTypeUnsignedInteger(65535n, 2);
 
-const _descriptor_4 = new __compactRuntime.CompactTypeVector(2, _descriptor_1);
+const _descriptor_4 = new __compactRuntime.CompactTypeVector(2, _descriptor_2);
 
 class _Either_0 {
   alignment() {
-    return _descriptor_2.alignment().concat(_descriptor_1.alignment().concat(_descriptor_1.alignment()));
+    return _descriptor_1.alignment().concat(_descriptor_2.alignment().concat(_descriptor_2.alignment()));
   }
   fromValue(value_0) {
     return {
-      is_left: _descriptor_2.fromValue(value_0),
-      left: _descriptor_1.fromValue(value_0),
-      right: _descriptor_1.fromValue(value_0)
+      is_left: _descriptor_1.fromValue(value_0),
+      left: _descriptor_2.fromValue(value_0),
+      right: _descriptor_2.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_2.toValue(value_0.is_left).concat(_descriptor_1.toValue(value_0.left).concat(_descriptor_1.toValue(value_0.right)));
+    return _descriptor_1.toValue(value_0.is_left).concat(_descriptor_2.toValue(value_0.left).concat(_descriptor_2.toValue(value_0.right)));
   }
 }
 
@@ -33,15 +33,15 @@ const _descriptor_6 = new __compactRuntime.CompactTypeUnsignedInteger(3402823669
 
 class _ContractAddress_0 {
   alignment() {
-    return _descriptor_1.alignment();
+    return _descriptor_2.alignment();
   }
   fromValue(value_0) {
     return {
-      bytes: _descriptor_1.fromValue(value_0)
+      bytes: _descriptor_2.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_1.toValue(value_0.bytes);
+    return _descriptor_2.toValue(value_0.bytes);
   }
 }
 
@@ -65,6 +65,9 @@ export class Contract {
     if (typeof(witnesses_0.holderSecretKey) !== 'function') {
       throw new __compactRuntime.CompactError('first (witnesses) argument to Contract constructor does not contain a function-valued field named holderSecretKey');
     }
+    if (typeof(witnesses_0.holderPublicKey) !== 'function') {
+      throw new __compactRuntime.CompactError('first (witnesses) argument to Contract constructor does not contain a function-valued field named holderPublicKey');
+    }
     if (typeof(witnesses_0.credentialDigest) !== 'function') {
       throw new __compactRuntime.CompactError('first (witnesses) argument to Contract constructor does not contain a function-valued field named credentialDigest');
     }
@@ -77,54 +80,46 @@ export class Contract {
         return { result: pureCircuits.derivePk(...args_1), context };
       },
       issueCredential: (...args_1) => {
-        if (args_1.length !== 5) {
-          throw new __compactRuntime.CompactError(`issueCredential: expected 5 arguments (as invoked from Typescript), received ${args_1.length}`);
+        if (args_1.length !== 4) {
+          throw new __compactRuntime.CompactError(`issueCredential: expected 4 arguments (as invoked from Typescript), received ${args_1.length}`);
         }
         const contextOrig_0 = args_1[0];
         const credentialId_0 = args_1[1];
-        const holderPk_0 = args_1[2];
-        const typeId_0 = args_1[3];
-        const expiry_0 = args_1[4];
+        const typeId_0 = args_1[2];
+        const expiry_0 = args_1[3];
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('issueCredential',
                                      'argument 1 (as invoked from Typescript)',
-                                     'credentials.compact line 64 char 1',
+                                     'credentials.compact line 67 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(credentialId_0) === 'bigint' && credentialId_0 >= 0n && credentialId_0 <= 18446744073709551615n)) {
           __compactRuntime.typeError('issueCredential',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'credentials.compact line 64 char 1',
+                                     'credentials.compact line 67 char 1',
                                      'Uint<0..18446744073709551616>',
                                      credentialId_0)
         }
-        if (!(holderPk_0.buffer instanceof ArrayBuffer && holderPk_0.BYTES_PER_ELEMENT === 1 && holderPk_0.length === 32)) {
-          __compactRuntime.typeError('issueCredential',
-                                     'argument 2 (argument 3 as invoked from Typescript)',
-                                     'credentials.compact line 64 char 1',
-                                     'Bytes<32>',
-                                     holderPk_0)
-        }
         if (!(typeof(typeId_0) === 'bigint' && typeId_0 >= 0n && typeId_0 <= 18446744073709551615n)) {
           __compactRuntime.typeError('issueCredential',
-                                     'argument 3 (argument 4 as invoked from Typescript)',
-                                     'credentials.compact line 64 char 1',
+                                     'argument 2 (argument 3 as invoked from Typescript)',
+                                     'credentials.compact line 67 char 1',
                                      'Uint<0..18446744073709551616>',
                                      typeId_0)
         }
         if (!(typeof(expiry_0) === 'bigint' && expiry_0 >= 0n && expiry_0 <= 18446744073709551615n)) {
           __compactRuntime.typeError('issueCredential',
-                                     'argument 4 (argument 5 as invoked from Typescript)',
-                                     'credentials.compact line 64 char 1',
+                                     'argument 3 (argument 4 as invoked from Typescript)',
+                                     'credentials.compact line 67 char 1',
                                      'Uint<0..18446744073709551616>',
                                      expiry_0)
         }
         const context = { ...contextOrig_0, gasCost: __compactRuntime.emptyRunningCost() };
         const partialProofData = {
           input: {
-            value: _descriptor_0.toValue(credentialId_0).concat(_descriptor_1.toValue(holderPk_0).concat(_descriptor_0.toValue(typeId_0).concat(_descriptor_0.toValue(expiry_0)))),
-            alignment: _descriptor_0.alignment().concat(_descriptor_1.alignment().concat(_descriptor_0.alignment().concat(_descriptor_0.alignment())))
+            value: _descriptor_0.toValue(credentialId_0).concat(_descriptor_0.toValue(typeId_0).concat(_descriptor_0.toValue(expiry_0))),
+            alignment: _descriptor_0.alignment().concat(_descriptor_0.alignment().concat(_descriptor_0.alignment()))
           },
           output: undefined,
           publicTranscript: [],
@@ -133,7 +128,6 @@ export class Contract {
         const result_0 = this._issueCredential_0(context,
                                                  partialProofData,
                                                  credentialId_0,
-                                                 holderPk_0,
                                                  typeId_0,
                                                  expiry_0);
         partialProofData.output = { value: [], alignment: [] };
@@ -148,14 +142,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('revokeCredential',
                                      'argument 1 (as invoked from Typescript)',
-                                     'credentials.compact line 83 char 1',
+                                     'credentials.compact line 81 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(credentialId_0) === 'bigint' && credentialId_0 >= 0n && credentialId_0 <= 18446744073709551615n)) {
           __compactRuntime.typeError('revokeCredential',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'credentials.compact line 83 char 1',
+                                     'credentials.compact line 81 char 1',
                                      'Uint<0..18446744073709551616>',
                                      credentialId_0)
         }
@@ -184,14 +178,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('proveCredential',
                                      'argument 1 (as invoked from Typescript)',
-                                     'credentials.compact line 93 char 1',
+                                     'credentials.compact line 91 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(credentialId_0) === 'bigint' && credentialId_0 >= 0n && credentialId_0 <= 18446744073709551615n)) {
           __compactRuntime.typeError('proveCredential',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'credentials.compact line 93 char 1',
+                                     'credentials.compact line 91 char 1',
                                      'Uint<0..18446744073709551616>',
                                      credentialId_0)
         }
@@ -244,7 +238,7 @@ export class Contract {
     if (!(issuerPublicKey_0.buffer instanceof ArrayBuffer && issuerPublicKey_0.BYTES_PER_ELEMENT === 1 && issuerPublicKey_0.length === 32)) {
       __compactRuntime.typeError('Contract state constructor',
                                  'argument 1 (argument 2 as invoked from Typescript)',
-                                 'credentials.compact line 57 char 1',
+                                 'credentials.compact line 60 char 1',
                                  'Bytes<32>',
                                  issuerPublicKey_0)
     }
@@ -275,8 +269,8 @@ export class Contract {
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_8.toValue(0n),
                                                                                               alignment: _descriptor_8.alignment() }).encode() } },
                                        { push: { storage: true,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(new Uint8Array(32)),
-                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_2.toValue(new Uint8Array(32)),
+                                                                                              alignment: _descriptor_2.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } }]);
     __compactRuntime.queryLedgerState(context,
                                       partialProofData,
@@ -350,8 +344,8 @@ export class Contract {
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_8.toValue(0n),
                                                                                               alignment: _descriptor_8.alignment() }).encode() } },
                                        { push: { storage: true,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(issuerPublicKey_0),
-                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_2.toValue(issuerPublicKey_0),
+                                                                                              alignment: _descriptor_2.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } }]);
     state_0.data = new __compactRuntime.ChargedState(context.currentQueryContext.state.state);
     return {
@@ -361,7 +355,7 @@ export class Contract {
     }
   }
   _blockTimeLt_0(context, partialProofData, time_0) {
-    return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+    return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                      partialProofData,
                                                                      [
                                                                       { dup: { n: 2 } },
@@ -400,8 +394,8 @@ export class Contract {
                                  result_0)
     }
     partialProofData.privateTranscriptOutputs.push({
-      value: _descriptor_1.toValue(result_0),
-      alignment: _descriptor_1.alignment()
+      value: _descriptor_2.toValue(result_0),
+      alignment: _descriptor_2.alignment()
     });
     return result_0;
   }
@@ -417,8 +411,26 @@ export class Contract {
                                  result_0)
     }
     partialProofData.privateTranscriptOutputs.push({
-      value: _descriptor_1.toValue(result_0),
-      alignment: _descriptor_1.alignment()
+      value: _descriptor_2.toValue(result_0),
+      alignment: _descriptor_2.alignment()
+    });
+    return result_0;
+  }
+  _holderPublicKey_0(context, partialProofData, credentialId_0) {
+    const witnessContext_0 = __compactRuntime.createWitnessContext(ledger(context.currentQueryContext.state), context.currentPrivateState, context.currentQueryContext.address);
+    const [nextPrivateState_0, result_0] = this.witnesses.holderPublicKey(witnessContext_0,
+                                                                          credentialId_0);
+    context.currentPrivateState = nextPrivateState_0;
+    if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
+      __compactRuntime.typeError('holderPublicKey',
+                                 'return value',
+                                 'credentials.compact line 50 char 1',
+                                 'Bytes<32>',
+                                 result_0)
+    }
+    partialProofData.privateTranscriptOutputs.push({
+      value: _descriptor_2.toValue(result_0),
+      alignment: _descriptor_2.alignment()
     });
     return result_0;
   }
@@ -430,13 +442,13 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('credentialDigest',
                                  'return value',
-                                 'credentials.compact line 48 char 1',
+                                 'credentials.compact line 51 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
     partialProofData.privateTranscriptOutputs.push({
-      value: _descriptor_1.toValue(result_0),
-      alignment: _descriptor_1.alignment()
+      value: _descriptor_2.toValue(result_0),
+      alignment: _descriptor_2.alignment()
     });
     return result_0;
   }
@@ -448,13 +460,13 @@ export class Contract {
     if (!(result_0.buffer instanceof ArrayBuffer && result_0.BYTES_PER_ELEMENT === 1 && result_0.length === 32)) {
       __compactRuntime.typeError('credentialSalt',
                                  'return value',
-                                 'credentials.compact line 49 char 1',
+                                 'credentials.compact line 52 char 1',
                                  'Bytes<32>',
                                  result_0)
     }
     partialProofData.privateTranscriptOutputs.push({
-      value: _descriptor_1.toValue(result_0),
-      alignment: _descriptor_1.alignment()
+      value: _descriptor_2.toValue(result_0),
+      alignment: _descriptor_2.alignment()
     });
     return result_0;
   }
@@ -464,14 +476,13 @@ export class Contract {
   _issueCredential_0(context,
                      partialProofData,
                      credentialId_0,
-                     holderPk_0,
                      typeId_0,
                      expiry_0)
   {
     __compactRuntime.assert(this._equal_0(this._derivePk_0(this._issuerSecretKey_0(context,
                                                                                    partialProofData),
                                                            new Uint8Array([99, 114, 101, 100, 58, 105, 115, 115, 117, 101, 114, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])),
-                                          _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
+                                          _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                     partialProofData,
                                                                                                     [
                                                                                                      { dup: { n: 0 } },
@@ -484,7 +495,7 @@ export class Contract {
                                                                                                      { popeq: { cached: false,
                                                                                                                 result: undefined } }]).value)),
                             'caller is not the issuer');
-    __compactRuntime.assert(!_descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+    __compactRuntime.assert(!_descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                        partialProofData,
                                                                                        [
                                                                                         { dup: { n: 0 } },
@@ -504,7 +515,9 @@ export class Contract {
     const commitment_0 = this._persistentCommit_0([this._credentialDigest_0(context,
                                                                             partialProofData,
                                                                             credentialId_0),
-                                                   holderPk_0],
+                                                   this._holderPublicKey_0(context,
+                                                                           partialProofData,
+                                                                           credentialId_0)],
                                                   this._credentialSalt_0(context,
                                                                          partialProofData,
                                                                          credentialId_0));
@@ -521,8 +534,8 @@ export class Contract {
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(credentialId_0),
                                                                                               alignment: _descriptor_0.alignment() }).encode() } },
                                        { push: { storage: true,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(commitment_0),
-                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_2.toValue(commitment_0),
+                                                                                              alignment: _descriptor_2.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } },
                                        { ins: { cached: true, n: 1 } }]);
     __compactRuntime.queryLedgerState(context,
@@ -572,8 +585,8 @@ export class Contract {
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(credentialId_0),
                                                                                               alignment: _descriptor_0.alignment() }).encode() } },
                                        { push: { storage: true,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_2.toValue(false),
-                                                                                              alignment: _descriptor_2.alignment() }).encode() } },
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(false),
+                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } },
                                        { ins: { cached: true, n: 1 } }]);
     return [];
@@ -582,7 +595,7 @@ export class Contract {
     __compactRuntime.assert(this._equal_1(this._derivePk_0(this._issuerSecretKey_0(context,
                                                                                    partialProofData),
                                                            new Uint8Array([99, 114, 101, 100, 58, 105, 115, 115, 117, 101, 114, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])),
-                                          _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
+                                          _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                     partialProofData,
                                                                                                     [
                                                                                                      { dup: { n: 0 } },
@@ -595,7 +608,7 @@ export class Contract {
                                                                                                      { popeq: { cached: false,
                                                                                                                 result: undefined } }]).value)),
                             'caller is not the issuer');
-    __compactRuntime.assert(_descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+    __compactRuntime.assert(_descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                       partialProofData,
                                                                                       [
                                                                                        { dup: { n: 0 } },
@@ -641,14 +654,14 @@ export class Contract {
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(credentialId_0),
                                                                                               alignment: _descriptor_0.alignment() }).encode() } },
                                        { push: { storage: true,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_2.toValue(false),
-                                                                                              alignment: _descriptor_2.alignment() }).encode() } },
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(false),
+                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } },
                                        { ins: { cached: true, n: 1 } }]);
     return [];
   }
   _proveCredential_0(context, partialProofData, credentialId_0) {
-    __compactRuntime.assert(_descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+    __compactRuntime.assert(_descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                       partialProofData,
                                                                                       [
                                                                                        { dup: { n: 0 } },
@@ -665,7 +678,7 @@ export class Contract {
                                                                                        { popeq: { cached: true,
                                                                                                   result: undefined } }]).value),
                             'unknown credential');
-    __compactRuntime.assert(!_descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+    __compactRuntime.assert(!_descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                        partialProofData,
                                                                                        [
                                                                                         { dup: { n: 0 } },
@@ -713,7 +726,7 @@ export class Contract {
                                                   this._credentialSalt_0(context,
                                                                          partialProofData,
                                                                          credentialId_0));
-    __compactRuntime.assert(this._equal_2(_descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
+    __compactRuntime.assert(this._equal_2(_descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
                                                                                                     partialProofData,
                                                                                                     [
                                                                                                      { dup: { n: 0 } },
@@ -746,8 +759,8 @@ export class Contract {
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(credentialId_0),
                                                                                               alignment: _descriptor_0.alignment() }).encode() } },
                                        { push: { storage: true,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_2.toValue(true),
-                                                                                              alignment: _descriptor_2.alignment() }).encode() } },
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(true),
+                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } },
                                        { ins: { cached: true, n: 1 } }]);
     const tmp_0 = 1n;
@@ -796,7 +809,7 @@ export function ledger(stateOrChargedState) {
   };
   return {
     get issuerPk() {
-      return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
+      return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
                                                                        partialProofData,
                                                                        [
                                                                         { dup: { n: 0 } },
@@ -814,7 +827,7 @@ export function ledger(stateOrChargedState) {
         if (args_0.length !== 0) {
           throw new __compactRuntime.CompactError(`isEmpty: expected 0 arguments, received ${args_0.length}`);
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -862,7 +875,7 @@ export function ledger(stateOrChargedState) {
                                      'Uint<0..18446744073709551616>',
                                      key_0)
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -891,7 +904,7 @@ export function ledger(stateOrChargedState) {
                                      'Uint<0..18446744073709551616>',
                                      key_0)
         }
-        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -915,7 +928,7 @@ export function ledger(stateOrChargedState) {
           throw new __compactRuntime.CompactError(`iter: expected 0 arguments, received ${args_0.length}`);
         }
         const self_0 = state.asArray()[1];
-        return self_0.asMap().keys().map(  (key) => {    const value = self_0.asMap().get(key).asCell();    return [      _descriptor_0.fromValue(key.value),      _descriptor_1.fromValue(value.value)    ];  })[Symbol.iterator]();
+        return self_0.asMap().keys().map(  (key) => {    const value = self_0.asMap().get(key).asCell();    return [      _descriptor_0.fromValue(key.value),      _descriptor_2.fromValue(value.value)    ];  })[Symbol.iterator]();
       }
     },
     credentialTypes: {
@@ -923,7 +936,7 @@ export function ledger(stateOrChargedState) {
         if (args_0.length !== 0) {
           throw new __compactRuntime.CompactError(`isEmpty: expected 0 arguments, received ${args_0.length}`);
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -971,7 +984,7 @@ export function ledger(stateOrChargedState) {
                                      'Uint<0..18446744073709551616>',
                                      key_0)
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -1032,7 +1045,7 @@ export function ledger(stateOrChargedState) {
         if (args_0.length !== 0) {
           throw new __compactRuntime.CompactError(`isEmpty: expected 0 arguments, received ${args_0.length}`);
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -1080,7 +1093,7 @@ export function ledger(stateOrChargedState) {
                                      'Uint<0..18446744073709551616>',
                                      key_0)
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -1141,7 +1154,7 @@ export function ledger(stateOrChargedState) {
         if (args_0.length !== 0) {
           throw new __compactRuntime.CompactError(`isEmpty: expected 0 arguments, received ${args_0.length}`);
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -1189,7 +1202,7 @@ export function ledger(stateOrChargedState) {
                                      'Uint<0..18446744073709551616>',
                                      elem_0)
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -1219,7 +1232,7 @@ export function ledger(stateOrChargedState) {
         if (args_0.length !== 0) {
           throw new __compactRuntime.CompactError(`isEmpty: expected 0 arguments, received ${args_0.length}`);
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -1267,7 +1280,7 @@ export function ledger(stateOrChargedState) {
                                      'Uint<0..18446744073709551616>',
                                      key_0)
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -1296,7 +1309,7 @@ export function ledger(stateOrChargedState) {
                                      'Uint<0..18446744073709551616>',
                                      key_0)
         }
-        return _descriptor_2.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -1320,7 +1333,7 @@ export function ledger(stateOrChargedState) {
           throw new __compactRuntime.CompactError(`iter: expected 0 arguments, received ${args_0.length}`);
         }
         const self_0 = state.asArray()[5];
-        return self_0.asMap().keys().map(  (key) => {    const value = self_0.asMap().get(key).asCell();    return [      _descriptor_0.fromValue(key.value),      _descriptor_2.fromValue(value.value)    ];  })[Symbol.iterator]();
+        return self_0.asMap().keys().map(  (key) => {    const value = self_0.asMap().get(key).asCell();    return [      _descriptor_0.fromValue(key.value),      _descriptor_1.fromValue(value.value)    ];  })[Symbol.iterator]();
       }
     },
     get totalCredentialProofs() {
@@ -1345,6 +1358,7 @@ const _emptyContext = {
 const _dummyContract = new Contract({
   issuerSecretKey: (...args) => undefined,
   holderSecretKey: (...args) => undefined,
+  holderPublicKey: (...args) => undefined,
   credentialDigest: (...args) => undefined,
   credentialSalt: (...args) => undefined
 });
@@ -1358,14 +1372,14 @@ export const pureCircuits = {
     if (!(sk_0.buffer instanceof ArrayBuffer && sk_0.BYTES_PER_ELEMENT === 1 && sk_0.length === 32)) {
       __compactRuntime.typeError('derivePk',
                                  'argument 1',
-                                 'credentials.compact line 53 char 1',
+                                 'credentials.compact line 56 char 1',
                                  'Bytes<32>',
                                  sk_0)
     }
     if (!(domain_0.buffer instanceof ArrayBuffer && domain_0.BYTES_PER_ELEMENT === 1 && domain_0.length === 32)) {
       __compactRuntime.typeError('derivePk',
                                  'argument 2',
-                                 'credentials.compact line 53 char 1',
+                                 'credentials.compact line 56 char 1',
                                  'Bytes<32>',
                                  domain_0)
     }

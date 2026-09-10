@@ -53,6 +53,8 @@ export type CredentialRecord = {
   readonly saltHex: string;
   /** The content itself (e.g. "SOC2 Type II — score 92"). Private, optional. */
   readonly content?: string;
+  /** Holder's public key, hex. Needed only by the issuer at issuance. Private. */
+  readonly holderPkHex?: string;
 };
 
 export type CredentialPrivateState = {
@@ -119,6 +121,16 @@ export const witnesses = {
     privateState,
     requireKey(privateState.holderSecretKeyHex, 'holder'),
   ],
+  holderPublicKey: (
+    { privateState }: WitnessContext<CredentialLedger, CredentialPrivateState>,
+    credentialId: bigint,
+  ): [CredentialPrivateState, Uint8Array] => {
+    const record = requireCredential(privateState, credentialId);
+    if (!record.holderPkHex) {
+      throw new Error(`No holder public key recorded for credential ${credentialId} (issuer-side material).`);
+    }
+    return [privateState, hexToBytes32(record.holderPkHex, 'holder public key')];
+  },
   credentialDigest: (
     { privateState }: WitnessContext<CredentialLedger, CredentialPrivateState>,
     credentialId: bigint,
