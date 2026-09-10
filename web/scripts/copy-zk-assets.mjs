@@ -11,14 +11,17 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const managed = path.resolve(here, '..', '..', 'contracts', 'managed', 'evidence');
 const publicDir = path.resolve(here, '..', 'public');
 
-if (!fs.existsSync(managed)) {
-  console.error(`Missing compiled contract at ${managed}. Run: npm run compile:evidence (repo root).`);
-  process.exit(1);
+// Both contracts' circuits have distinct names, so their keys share one
+// /keys and one /zkir directory on the origin.
+for (const contract of ['evidence', 'credentials']) {
+  const managed = path.resolve(here, '..', '..', 'contracts', 'managed', contract);
+  if (!fs.existsSync(managed)) {
+    console.error(`Missing compiled contract at ${managed}. Run: npm run compile:${contract} (repo root).`);
+    process.exit(1);
+  }
+  fs.cpSync(path.join(managed, 'keys'), path.join(publicDir, 'keys'), { recursive: true });
+  fs.cpSync(path.join(managed, 'zkir'), path.join(publicDir, 'zkir'), { recursive: true });
 }
-
-fs.cpSync(path.join(managed, 'keys'), path.join(publicDir, 'keys'), { recursive: true });
-fs.cpSync(path.join(managed, 'zkir'), path.join(publicDir, 'zkir'), { recursive: true });
-console.log('ZK assets copied into web/public/keys and web/public/zkir.');
+console.log('ZK assets (evidence + credentials) copied into web/public/keys and web/public/zkir.');
