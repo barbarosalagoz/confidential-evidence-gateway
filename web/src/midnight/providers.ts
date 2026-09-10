@@ -29,12 +29,19 @@ import {
 } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import { fromHex, toHex, parseCoinPublicKeyToHex, parseEncPublicKeyToHex } from '@midnight-ntwrk/midnight-js-utils';
 import { localStoragePrivateStateProvider } from './local-private-state-provider';
-import type { EvidencePrivateState } from '../../../src/evidence';
+import type { PrivateStateProvider } from '@midnight-ntwrk/midnight-js-types';
 
-export type EvidenceCircuitKeys = 'registerEvidence' | 'proveEvidence';
+export type EvidenceCircuitKeys =
+  | 'registerEvidence'
+  | 'proveEvidence'
+  | 'issueCredential'
+  | 'revokeCredential'
+  | 'proveCredential';
 
+/** One instance per joined contract: the private-state scope is per contract. */
 export type EvidenceProviders = {
-  privateStateProvider: ReturnType<typeof localStoragePrivateStateProvider<string, EvidencePrivateState>>;
+  // Private state shape differs per contract (evidence vs credentials).
+  privateStateProvider: PrivateStateProvider<string, any>;
   zkConfigProvider: FetchZkConfigProvider<EvidenceCircuitKeys>;
   proofProvider: ProofProvider;
   publicDataProvider: ReturnType<typeof indexerPublicDataProvider>;
@@ -105,7 +112,7 @@ export async function buildProviders(
   };
 
   return {
-    privateStateProvider: localStoragePrivateStateProvider<string, EvidencePrivateState>(),
+    privateStateProvider: localStoragePrivateStateProvider<string, any>(),
     zkConfigProvider,
     proofProvider,
     publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri),

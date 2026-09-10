@@ -25,15 +25,27 @@ type DeploymentFile = {
   blockHeight?: string;
 };
 
-const deploymentModules = import.meta.glob('../../deployments/evidence.*.json', {
+const deploymentModules = import.meta.glob('../../deployments/*.json', {
   eager: true,
 }) as Record<string, DeploymentFile>;
 
+function findDeployment(contract: 'evidence' | 'credentials'): DeploymentFile | null {
+  for (const [file, dep] of Object.entries(deploymentModules)) {
+    if (file.endsWith(`${contract}.${NETWORK_ID}.json`) && dep.contractAddress) return dep;
+  }
+  return null;
+}
+
+/** Level 2 evidence registry. */
 export function defaultDeployment(): DeploymentFile | null {
   const fromEnv = import.meta.env.VITE_CONTRACT_ADDRESS as string | undefined;
   if (fromEnv) return { network: NETWORK_ID, contractAddress: fromEnv };
-  for (const [file, dep] of Object.entries(deploymentModules)) {
-    if (file.endsWith(`evidence.${NETWORK_ID}.json`) && dep.contractAddress) return dep;
-  }
-  return null;
+  return findDeployment('evidence');
+}
+
+/** Level 3 credentials registry. */
+export function defaultCredentialsDeployment(): (DeploymentFile & { issuerPublicKey?: string }) | null {
+  const fromEnv = import.meta.env.VITE_CREDENTIALS_ADDRESS as string | undefined;
+  if (fromEnv) return { network: NETWORK_ID, contractAddress: fromEnv };
+  return findDeployment('credentials');
 }

@@ -20,6 +20,7 @@ build/
 # hosted builds (Vercel/CI) cannot run the Compact compiler.
 contracts/managed/*
 !contracts/managed/evidence/
+!contracts/managed/credentials/
 
 # Web frontend
 web/dist/

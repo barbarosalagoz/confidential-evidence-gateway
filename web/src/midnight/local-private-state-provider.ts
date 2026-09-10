@@ -60,31 +60,30 @@ export const localStoragePrivateStateProvider = <PSI extends PrivateStateId, PS 
     setContractAddress(address: ContractAddress): void {
       contractAddress = address;
     },
-    set(privateStateId: PSI, state: PS): Promise<void> {
+    // async so a missing contract address surfaces as a rejection, never a
+    // synchronous throw out of a Promise-returning method.
+    async set(privateStateId: PSI, state: PS): Promise<void> {
       const address = requireContractAddress();
       localStorage.setItem(stateKey(address, privateStateId), encode(state));
       const index = readIndex(address);
       if (!index.includes(privateStateId)) writeIndex(address, [...index, privateStateId]);
-      return Promise.resolve();
     },
-    get(privateStateId: PSI): Promise<PS | null> {
+    async get(privateStateId: PSI): Promise<PS | null> {
       const raw = localStorage.getItem(stateKey(requireContractAddress(), privateStateId));
-      return Promise.resolve(raw === null ? null : decode<PS>(raw));
+      return raw === null ? null : decode<PS>(raw);
     },
-    remove(privateStateId: PSI): Promise<void> {
+    async remove(privateStateId: PSI): Promise<void> {
       const address = requireContractAddress();
       localStorage.removeItem(stateKey(address, privateStateId));
       writeIndex(
         address,
         readIndex(address).filter((id) => id !== privateStateId),
       );
-      return Promise.resolve();
     },
-    clear(): Promise<void> {
+    async clear(): Promise<void> {
       const address = requireContractAddress();
       for (const id of readIndex(address)) localStorage.removeItem(stateKey(address, id));
       localStorage.removeItem(stateIndexKey(address));
-      return Promise.resolve();
     },
     setSigningKey(address: ContractAddress, signingKey: SigningKey): Promise<void> {
       localStorage.setItem(signingKeyKey(address), encode(signingKey));
