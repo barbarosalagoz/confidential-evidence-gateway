@@ -103,8 +103,9 @@ jobs:
         # working. Fails the build if any of these ever gets committed.
         run: |
           set -uo pipefail
-          patterns='^\.env$|^\.env\.|\.midnight-state\.json|\.midnight-wallet-state|level-db|leveldb|\.ldb$|mnemonic|\.seed$|\.pem$|\.p12$|id_rsa|id_ed25519'
+          patterns='^\.env$|^\.env\.|\.midnight-state\.json|\.midnight-wallet-state|level-db|leveldb|\.ldb$|mnemonic|\.seed$|\.key$|\.pem$|\.p12$|id_rsa|id_ed25519'
           # .env.example is documentation and carries no real values.
+          # *.key covers the Level 3 issuer key (.credentials-issuer.<network>.key).
           tracked=$(git ls-files | grep -Ev '^\.env\.example$' | grep -E "$patterns" || true)
           if [ -n "$tracked" ]; then
             echo "::error::Secret-bearing files are tracked in git:"
