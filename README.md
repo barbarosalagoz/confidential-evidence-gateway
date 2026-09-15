@@ -17,8 +17,13 @@ Rise In / Midnight Network challenge, built on Midnight **Preprod** (public
 testnet, test tokens only).
 
 **Live demo:** <https://confidential-evidence-gateway-swvq.vercel.app> ·
-**Demo video:** <https://youtu.be/wn4n3YQOEyE> ·
-**Level 2 contract:** `c421e7a82bf0c793e1a99218152ce6bdafb89f55dc12e2dd046458b6e5991df5` on Preprod
+**Demo video (Level 3):** <https://youtu.be/9H6nLkH1iWM> ·
+**X:** <https://x.com/evidencegateway> ·
+**Level 3 contract:** [`0fed435f0d6fe479753726feffeb7f4856ddea9c37ea1e8031ec089c1f28bcce`](https://preprod.midnightexplorer.com/contracts/0fed435f0d6fe479753726feffeb7f4856ddea9c37ea1e8031ec089c1f28bcce) on Preprod ·
+**Level 2 contract:** [`c421e7a82bf0c793e1a99218152ce6bdafb89f55dc12e2dd046458b6e5991df5`](https://preprod.midnightexplorer.com/contracts/c421e7a82bf0c793e1a99218152ce6bdafb89f55dc12e2dd046458b6e5991df5) on Preprod
+
+The Level 3 video is hosted on the Web3 Wanderers YouTube channel, not on the
+author's own channel. The Level 2 video is linked from the Level 2 section.
 
 > Status: unaudited demonstration of one privacy primitive. Not for production
 > or mainnet. See [SECURITY.md](SECURITY.md).
@@ -36,7 +41,8 @@ This project explores a vendor-neutral confidential compliance gateway for globa
 | | |
 |---|---|
 | **Network** | Midnight Preprod (public testnet) |
-| **Contract address** | `ff3ce6ef5f9f6d0f2eb21724476fca328f9c2ccaee768f3c91c32b8db08cf25f` |
+| **Contract address** | [`ff3ce6ef5f9f6d0f2eb21724476fca328f9c2ccaee768f3c91c32b8db08cf25f`](https://preprod.midnightexplorer.com/contracts/ff3ce6ef5f9f6d0f2eb21724476fca328f9c2ccaee768f3c91c32b8db08cf25f) |
+| **Explorer** | [preprod.midnightexplorer.com/contracts/ff3ce6ef5f…](https://preprod.midnightexplorer.com/contracts/ff3ce6ef5f9f6d0f2eb21724476fca328f9c2ccaee768f3c91c32b8db08cf25f) — contract page |
 | **Deploy transaction** | `5c9934f9bdee6fd6533f68046b8cc3d9a04a40a92959d90012e10990d6b0ec0e` (block 2306230, 2026-08-28T20:45:54Z) |
 | **Claim transaction** | `267aba31601313b3f3f34cf6d143f015355ec4f9f77f4d2ed243484d83b02124` (block 2306359, 2026-08-28T20:58:48Z) |
 | **Contract source** | [`contracts/counter.compact`](contracts/counter.compact) |
@@ -105,9 +111,9 @@ the Lace wallet: the **compliance-evidence commitment**.
 | | |
 |---|---|
 | **Network** | Midnight Preprod (public testnet) |
-| **Contract address** | `c421e7a82bf0c793e1a99218152ce6bdafb89f55dc12e2dd046458b6e5991df5` |
+| **Contract address** | [`c421e7a82bf0c793e1a99218152ce6bdafb89f55dc12e2dd046458b6e5991df5`](https://preprod.midnightexplorer.com/contracts/c421e7a82bf0c793e1a99218152ce6bdafb89f55dc12e2dd046458b6e5991df5) |
 | **Deploy transaction** | `b6c7bf2f14152b82656ed1f8558a9f924f3ed158a048e9ab11d85ba197f4b22f` (block 2376823, 2026-09-02T18:25:36Z) |
-| **Explorer** | [preprod.midnightexplorer.com](https://preprod.midnightexplorer.com) — search the contract address or tx hashes above |
+| **Explorer** | [preprod.midnightexplorer.com/contracts/c421e7a82b…](https://preprod.midnightexplorer.com/contracts/c421e7a82bf0c793e1a99218152ce6bdafb89f55dc12e2dd046458b6e5991df5) — contract page; tx hashes above can be searched from there |
 | **Contract source** | [`contracts/evidence.compact`](contracts/evidence.compact) |
 | **Circuits** | `registerEvidence(controlId)`, `proveEvidence(controlId)` |
 | **Live demo** | [confidential-evidence-gateway-swvq.vercel.app](https://confidential-evidence-gateway-swvq.vercel.app) |
@@ -283,10 +289,10 @@ who they are. A **verifier** reads the outcome from public state alone.
 | | |
 |---|---|
 | **Network** | Midnight Preprod (public testnet) |
-| **Contract address** | `0fed435f0d6fe479753726feffeb7f4856ddea9c37ea1e8031ec089c1f28bcce` |
+| **Contract address** | [`0fed435f0d6fe479753726feffeb7f4856ddea9c37ea1e8031ec089c1f28bcce`](https://preprod.midnightexplorer.com/contracts/0fed435f0d6fe479753726feffeb7f4856ddea9c37ea1e8031ec089c1f28bcce) |
 | **Issuer public key** | `a397b50edda3ba9afa4b0814857e799470840038d7a4676ce05df93f839fc10f` |
 | **Deploy transaction** | `f75419404d870010c4ab15b4ffa784c4503817aae0f97663fdd83569756df6d2` (block 2486634, 2026-09-10T09:27:18Z) |
-| **Explorer** | [preprod.midnightexplorer.com](https://preprod.midnightexplorer.com) — search the contract address or tx hashes |
+| **Explorer** | [preprod.midnightexplorer.com/contracts/0fed435f0d…](https://preprod.midnightexplorer.com/contracts/0fed435f0d6fe479753726feffeb7f4856ddea9c37ea1e8031ec089c1f28bcce) — contract page; tx hashes above can be searched from there |
 | **Contract source** | [`contracts/credentials.compact`](contracts/credentials.compact) |
 | **Circuits** | `issueCredential(credentialId, typeId, expiry)`, `revokeCredential(credentialId)`, `proveCredential(credentialId)`; pure `derivePk(sk, domain)` |
 | **Deployment record** | [`deployments/credentials.preprod.json`](deployments/credentials.preprod.json) |
@@ -535,6 +541,20 @@ Tests: `npm test` (Level 1–3 contract suites, 52 tests) and
 
 ---
 
+## Level 4 — Submission tidy-up
+
+Level 4 changes no contract, circuit or app code. It adds the product X
+profile ([x.com/evidencegateway](https://x.com/evidencegateway)) to the header
+and links the Level 3 demo video there. It fixes the README where it had
+drifted from the code: the test count (52 contract tests, 39 app tests, as
+measured by CI), the prerequisites (Lace, Chrome, the proof server in Docker),
+a direct explorer page for each contract address, and a plain statement that
+setup is tested on Linux only. It hardens CI so the secret-hygiene job also
+fails on any tracked `*.key` file, the shape of the Level 3 issuer key, which
+the job did not previously scan for.
+
+---
+
 ## Privacy Model
 
 The entire point of the project is the line between these two tables.
@@ -606,14 +626,22 @@ export circuit proveCompliance(): [] {
 
 ---
 
-## Local setup (Linux)
+## Local setup (tested on Linux only)
 
 Written for Ubuntu 26.04; any modern Linux with the same prerequisites works.
+macOS: not tested. The same steps should apply with Docker Desktop in place of
+Docker Engine, but none of the runs recorded in this README were made on macOS.
 
 ### Prerequisites
 
 - **Node.js 22+** — the pinned version is in [`.nvmrc`](.nvmrc)
 - **Docker Engine** with **Compose v2**
+- **Proof server**: runs as a Docker container (`midnightntwrk/proof-server:8.1.0`,
+  see [`docker-compose.yml`](docker-compose.yml)). Step 5 starts it for you;
+  this is why Docker is required.
+- **Chrome** with the **Lace (Midnight Preview)** wallet extension, switched to
+  Preprod, for the web DApp only. The CLI, tests and observer scripts do not
+  need a browser wallet.
 - **curl**, **git**
 
 Confirm Docker works without `sudo`:
@@ -678,7 +706,7 @@ Then edit `.env`:
 
 ```bash
 npm run compile   # → contracts/managed/counter/{contract,keys,zkir}/
-npm test          # 19 Vitest tests, no network needed
+npm test          # 52 Vitest tests (Level 1–3 contract suites), no network needed
 ```
 
 `npm test` runs the compiled circuit in-process against a simulated ledger — no
