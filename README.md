@@ -478,9 +478,14 @@ circuit.
 - Block time carries the node's declared error bound
   (`secondsSinceEpochErr`); expiry precision is seconds, accuracy is the
   chain's.
-- The issuer key is held in a local file (CLI) and, for the browser demo,
-  imported into unencrypted `localStorage`. A production issuer would keep it
-  in an HSM-backed signer; the contract does not care where it lives.
+- The issuer key is held in a local file (CLI). The browser demo takes it
+  pasted per tab and keeps it in memory only — never in `localStorage`, gone
+  when the tab closes (`withSessionIssuerKey` in
+  `web/src/midnight/credentials-api.ts`; a key persisted by an earlier
+  version is removed on join). That path exists for the demo; production
+  issuance runs from the CLI with the key file on disk, and the production
+  target is an HSM-backed signer. The contract does not care where the key
+  lives.
 - The demo runs issuer and holder in one browser profile, so their private
   stores coexist; in reality the issuer hands `(content, salt)` to the holder
   out-of-band and never learns the holder's secret key (only the public key).
@@ -491,8 +496,9 @@ circuit.
 ### Using Level 3
 
 Web (Preprod, Lace on Chrome): open the live demo → connect → **Level 3** →
-join the registry (address pre-filled). Issuer: import the issuer secret key
-(from the deployer's `.credentials-issuer.preprod.key`), enter the holder's
+join the registry (address pre-filled). Issuer: paste the issuer secret key
+(from the deployer's `.credentials-issuer.preprod.key`; it stays in the tab's
+memory and must be pasted again after a reload), enter the holder's
 public key (Holder panel → *Create / load holder key*), type, expiry, and the
 confidential content → **Issue**. Hand the displayed content + salt to the
 holder → Holder: **Store material** → **Prove credential**. Verifier: **Read
