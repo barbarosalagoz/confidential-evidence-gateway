@@ -521,8 +521,8 @@ npm run credentials -- --network preprod revoke --credential 7001
 npm run verify:credentials -- --network preprod        # observer view, no wallet
 ```
 
-Tests: `npm test` (Level 1–3 contract suites, 52 tests) and
-`npm test --prefix web` (app tests, 39). CI runs both on every push.
+Tests: `npm test` (Level 1–3 contract suites, 57 tests) and
+`npm test --prefix web` (app tests, 49). CI runs both on every push.
 
 ### What we learned building Level 3
 

@@ -124,6 +124,42 @@ describe('proveEvidence', () => {
   });
 });
 
+// Repeatable by design (docs/THREAT_MODEL.md §6): no nullifier, so the same
+// evidence can be proven again and again; each proof counts once and the
+// verified flag stays true. Same pattern as Level 1's
+// "increments exactly once per verified claim".
+describe('repeated proofs', () => {
+  it('the same evidence proven three times: counter 1, 2, 3; flag stays true', async () => {
+    const sim = await EvidenceSimulator.deploy(baseState);
+    sim.registerEvidence(CONTROL_A);
+
+    expect(sim.ledger.totalVerifications).toBe(0n);
+    sim.proveEvidence(CONTROL_A);
+    expect(sim.ledger.totalVerifications).toBe(1n);
+    sim.proveEvidence(CONTROL_A);
+    expect(sim.ledger.totalVerifications).toBe(2n);
+    sim.proveEvidence(CONTROL_A);
+    expect(sim.ledger.totalVerifications).toBe(3n);
+    expect(sim.ledger.verifiedControls.lookup(CONTROL_A)).toBe(true);
+  });
+
+  it('a repeat leaves the commitment, the other control and the private state untouched', async () => {
+    const sim = await EvidenceSimulator.deploy(baseState);
+    sim.registerEvidence(CONTROL_A);
+    sim.registerEvidence(CONTROL_B);
+    sim.proveEvidence(CONTROL_A);
+    const commitmentA = bytesToHex(sim.ledger.evidenceCommitments.lookup(CONTROL_A));
+
+    sim.proveEvidence(CONTROL_A);
+
+    expect(bytesToHex(sim.ledger.evidenceCommitments.lookup(CONTROL_A))).toBe(commitmentA);
+    expect(sim.ledger.verifiedControls.lookup(CONTROL_A)).toBe(true);
+    expect(sim.ledger.verifiedControls.lookup(CONTROL_B)).toBe(false);
+    expect(sim.ledger.totalVerifications).toBe(2n);
+    expect(sim.privateState).toEqual(baseState);
+  });
+});
+
 describe('privacy: what the public actually sees', () => {
   /** Renders everything a transaction would carry publicly. */
   function publicView(sim: EvidenceSimulator, results: { proofData?: unknown }): string {
