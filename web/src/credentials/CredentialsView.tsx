@@ -387,6 +387,10 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
         <section className="panel">
           <h2><span className="status-dot on" />Verifier</h2>
           <p className="sub">Public state only — no wallet. Status is derived from revoked/expiry/verified plus this clock.</p>
+          <p className="sub" data-testid="proof-scope-note">
+            A valid proof shows the submitter knew (digest, salt, holder key) behind the commitment — it does not establish
+            that the content is true, nor that the digest hashes a real document.
+          </p>
           <label>Credentials registry address</label>
           <input type="text" value={verifierAddress} onChange={(e) => setVerifierAddress(e.target.value)} placeholder="contract address…" />
           <div className="row">
