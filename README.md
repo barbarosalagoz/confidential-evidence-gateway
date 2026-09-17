@@ -781,6 +781,7 @@ tests/                          Vitest suite (simulator + privacy scans)
 scripts/e2e-check.ts            on-chain smoke check
 docs/THREAT_MODEL.md            actors, trust assumptions, known limits
 docs/CRYPTOGRAPHY.md            what is used; why it is not post-quantum
+docs/ROADMAP.md                 deferred from the Preprod MVP: encrypted web private state, live Preprod E2E in CI
 SECURITY.md                     reporting, scope, secret handling
 .github/workflows/ci.yml        compile + test + secret hygiene
 ```
@@ -841,6 +842,10 @@ reproduces the single copy.
   quantum-safety claim; it documents how the architecture keeps a
   crypto-agility boundary so the future off-chain evidence layer can adopt
   NIST PQC (ML-KEM, ML-DSA) without redesigning the contract.
+- [docs/ROADMAP.md](docs/ROADMAP.md) — the two production-readiness items
+  deferred from the Preprod MVP (encrypted browser private state; a live
+  Preprod end-to-end job in CI), each with what it needs and why it waits.
+  `npm run test:e2e` exists today and is run manually.
 
 The most important limitation, stated up front: the circuit proves *"the value
 I was given is ≥ the threshold"*, not *"my real-world metric is ≥ the
