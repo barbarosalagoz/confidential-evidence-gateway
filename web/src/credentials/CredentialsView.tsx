@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { NETWORK_ID, defaultCredentialsDeployment } from '../config';
 import type { WalletSession } from '../midnight/wallet';
 import { buildProviders, DEFAULT_LOCAL_PROOF_SERVER, type ProvingMode } from '../midnight/providers';
+import { remoteProverWarning, type ProverInfo } from '../midnight/prover-locality';
 import { describeError } from '../midnight/errors';
 import { CredentialsApi, type CredentialRegistryState } from '../midnight/credentials-api';
 import { fetchCredentialPublicState, type VerifierSnapshot } from '../midnight/auditor';
@@ -33,6 +34,7 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
     }
   });
   const [api, setApi] = useState<CredentialsApi | null>(null);
+  const [prover, setProver] = useState<ProverInfo | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [local, setLocal] = useState<CredentialPrivateState>({ credentials: {} });
   const [liveState, setLiveState] = useState<CredentialRegistryState | null>(null);
@@ -67,6 +69,7 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
       api?.clearIssuerKey();
       setIssuerPk(null);
       setApi(null);
+      setProver(null);
       setLiveState(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,6 +134,9 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
       });
       const joined = await CredentialsApi.join(providers, address, NETWORK_ID);
       setApi(joined);
+      setProver(providers.prover);
+      const warning = remoteProverWarning(providers.prover);
+      if (warning) addLog(warning, 'err');
       setLocal(await joined.localState());
       if (joined.removedPersistedIssuerKey) {
         addLog('Removed an issuer key that an earlier version of this app had persisted in localStorage. Paste it again to act as issuer; it now stays in memory only.');
@@ -273,6 +279,12 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
             </button>
           </div>
         </section>
+      )}
+
+      {api && prover && remoteProverWarning(prover) && (
+        <p className="note" style={{ borderLeftColor: 'var(--err)', marginBottom: 18 }} data-testid="remote-prover-warning">
+          {remoteProverWarning(prover)}
+        </p>
       )}
 
       <div className="columns three">

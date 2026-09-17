@@ -1,8 +1,11 @@
 # Threat Model — Confidential Compliance Proof v0
 
-Scope: the Level 1 contract in `contracts/counter.compact` and the client code
-that drives it. The off-chain evidence layer described in the README's *Initial
-Idea* is **not** built yet and is out of scope here.
+Scope: written for the Level 1 contract in `contracts/counter.compact` and
+the CLI that drives it. Two parts apply to every level: §3.5 (the proving
+component, which now covers the web app and Lace as well as the CLI) and §6
+(repeatable proofs, written for Level 3). The off-chain evidence layer
+described in the README's *Initial Idea* is **not** built yet and is out of
+scope here.
 
 ## 1. Actors
 
@@ -48,9 +51,28 @@ formality:
    guarantee here.
 4. **Elliptic-curve assumptions hold.** See `docs/CRYPTOGRAPHY.md`. Not
    post-quantum.
-5. **The proof server is trusted with private inputs.** It runs locally
-   (`127.0.0.1:6300`) and receives the witness in order to build the proof.
-   Pointing it at a remote host would hand the score to that host. Do not.
+5. **The proving component is trusted with the witnesses.** Whatever builds
+   the proof receives every witness the circuit takes: for Level 1 the
+   score; for Levels 2 and 3 the evidence or credential digest, the
+   commitment salt and the secret keys' circuit inputs. Never the content
+   itself, which is not a witness. Which component that is depends on the
+   client:
+   - **CLI and scripts**: a local proof server (`127.0.0.1:6300`, the Docker
+     container from `docker-compose.yml`). Witnesses stay on the machine.
+     `MIDNIGHT_PROOF_SERVER_URL` can point elsewhere; doing so hands the
+     witnesses to that host.
+   - **Web app, default "Lace-delegated" mode**: the proof is built by
+     whatever proof server the Lace wallet is configured with, which **may
+     be a remote, hosted prover**. The app shows a warning after joining
+     when that prover is not localhost, or when Lace does not report one.
+   - **Web app, "App → proof server" mode**: the URL entered in the app,
+     `http://localhost:6300` by default.
+
+   Recommendation: when the witnesses themselves are confidential — a real
+   score, a real salt guarding a real commitment — prove locally: run the
+   proof-server container and either point Lace at it or use the direct
+   mode. A remote prover sees exactly what a local one does; the only
+   difference is who operates it. Nothing on-chain changes either way.
 
 ## 4. What an adversary sees
 

@@ -30,6 +30,7 @@ import {
 import { fromHex, toHex, parseCoinPublicKeyToHex, parseEncPublicKeyToHex } from '@midnight-ntwrk/midnight-js-utils';
 import { localStoragePrivateStateProvider } from './local-private-state-provider';
 import { withTimeout } from './errors';
+import { proverInfo, type ProverInfo } from './prover-locality';
 import type { PrivateStateProvider } from '@midnight-ntwrk/midnight-js-types';
 
 export type EvidenceCircuitKeys =
@@ -48,6 +49,8 @@ export type EvidenceProviders = {
   publicDataProvider: ReturnType<typeof indexerPublicDataProvider>;
   walletProvider: WalletProvider;
   midnightProvider: MidnightProvider;
+  /** Which prover this session hands its witnesses to, so the UI can warn when it is not local. */
+  prover: ProverInfo;
 };
 
 /**
@@ -93,22 +96,33 @@ async function makeProofProvider(
   zkConfigProvider: FetchZkConfigProvider<EvidenceCircuitKeys>,
   proving: ProvingOptions,
   log: (m: string) => void,
-): Promise<{ proofProvider: ProofProvider; description: string }> {
+): Promise<{ proofProvider: ProofProvider; description: string; prover: ProverInfo }> {
   const config = await api.getConfiguration();
   if (proving.mode === 'proof-server') {
     const url = proving.proofServerUrl?.trim() || config.proverServerUri || DEFAULT_LOCAL_PROOF_SERVER;
-    return { proofProvider: httpClientProofProvider(url, zkConfigProvider), description: `app → proof server ${url}` };
+    return {
+      proofProvider: httpClientProofProvider(url, zkConfigProvider),
+      description: `app → proof server ${url}`,
+      prover: proverInfo('proof-server', url),
+    };
   }
   try {
     const provingProvider = await api.getProvingProvider(zkConfigProvider.asKeyMaterialProvider());
     return {
       proofProvider: createProofProvider(provingProvider),
       description: 'delegated to the wallet (Lace proves with its own configured proof server)',
+      // Lace proves with whatever it is configured with; proverServerUri is
+      // what it advertises for that, and may be absent.
+      prover: proverInfo('wallet', config.proverServerUri),
     };
   } catch (err) {
     log(`Wallet proving provider unavailable (${err instanceof Error ? err.message : String(err)}); falling back.`);
     const url = config.proverServerUri || DEFAULT_LOCAL_PROOF_SERVER;
-    return { proofProvider: httpClientProofProvider(url, zkConfigProvider), description: `app → proof server ${url} (fallback)` };
+    return {
+      proofProvider: httpClientProofProvider(url, zkConfigProvider),
+      description: `app → proof server ${url} (fallback)`,
+      prover: proverInfo('proof-server', url),
+    };
   }
 }
 
@@ -126,7 +140,7 @@ export async function buildProviders(
     fetch.bind(window),
   );
 
-  const { proofProvider: rawProofProvider, description } = await makeProofProvider(api, zkConfigProvider, proving, log);
+  const { proofProvider: rawProofProvider, description, prover } = await makeProofProvider(api, zkConfigProvider, proving, log);
   log(`Proving: ${description}.`);
 
   // Stage instrumentation: proving, balancing and submission each log their
@@ -184,5 +198,6 @@ export async function buildProviders(
     publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri),
     walletProvider,
     midnightProvider,
+    prover,
   };
 }
