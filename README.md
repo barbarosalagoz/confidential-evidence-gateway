@@ -475,6 +475,12 @@ circuit.
   history: the verifier view derives *current* status from
   `revoked → expired → verified` using its own clock, and the CLI/web
   verifier print exactly that derivation.
+- A holder can present the same credential again and again: proofs are
+  **repeatable by design**, there is no nullifier, and `totalCredentialProofs`
+  counts presentations. Why that is the right semantics for a public
+  registry status, and when a single-use presentation would need a
+  challenge and a nullifier instead, is in
+  [`docs/THREAT_MODEL.md` §6](docs/THREAT_MODEL.md#6-level-3-proofs-are-repeatable-by-design).
 - Block time carries the node's declared error bound
   (`secondsSinceEpochErr`); expiry precision is seconds, accuracy is the
   chain's.
