@@ -1,8 +1,11 @@
 # Threat Model — Confidential Compliance Proof v0
 
-Scope: the Level 1 contract in `contracts/counter.compact` and the client code
-that drives it. The off-chain evidence layer described in the README's *Initial
-Idea* is **not** built yet and is out of scope here.
+Scope: written for the Level 1 contract in `contracts/counter.compact` and
+the CLI that drives it. Two parts apply to every level: §3.5 (the proving
+component, which now covers the web app and Lace as well as the CLI) and §6
+(repeatable proofs, written for Level 3). The off-chain evidence layer
+described in the README's *Initial Idea* is **not** built yet and is out of
+scope here.
 
 ## 1. Actors
 
@@ -48,9 +51,28 @@ formality:
    guarantee here.
 4. **Elliptic-curve assumptions hold.** See `docs/CRYPTOGRAPHY.md`. Not
    post-quantum.
-5. **The proof server is trusted with private inputs.** It runs locally
-   (`127.0.0.1:6300`) and receives the witness in order to build the proof.
-   Pointing it at a remote host would hand the score to that host. Do not.
+5. **The proving component is trusted with the witnesses.** Whatever builds
+   the proof receives every witness the circuit takes: for Level 1 the
+   score; for Levels 2 and 3 the evidence or credential digest, the
+   commitment salt and the secret keys' circuit inputs. Never the content
+   itself, which is not a witness. Which component that is depends on the
+   client:
+   - **CLI and scripts**: a local proof server (`127.0.0.1:6300`, the Docker
+     container from `docker-compose.yml`). Witnesses stay on the machine.
+     `MIDNIGHT_PROOF_SERVER_URL` can point elsewhere; doing so hands the
+     witnesses to that host.
+   - **Web app, default "Lace-delegated" mode**: the proof is built by
+     whatever proof server the Lace wallet is configured with, which **may
+     be a remote, hosted prover**. The app shows a warning after joining
+     when that prover is not localhost, or when Lace does not report one.
+   - **Web app, "App → proof server" mode**: the URL entered in the app,
+     `http://localhost:6300` by default.
+
+   Recommendation: when the witnesses themselves are confidential — a real
+   score, a real salt guarding a real commitment — prove locally: run the
+   proof-server container and either point Lace at it or use the direct
+   mode. A remote prover sees exactly what a local one does; the only
+   difference is who operates it. Nothing on-chain changes either way.
 
 ## 4. What an adversary sees
 
@@ -92,7 +114,57 @@ These are real and are stated rather than papered over:
   `proveCompliance()`.
 - **The threshold is fixed at deployment.** Changing policy means redeploying.
 
-## 6. Not addressed at this level
+## 6. Level 3 proofs are repeatable by design
+
+Scope note: §1–§5 above were written for the Level 1 contract. This section
+covers `proveCredential` in `contracts/credentials.compact` (Level 3); the
+same reasoning applies to `proveEvidence` in `contracts/evidence.compact`.
+
+**A holder can present the same credential any number of times.** Every
+successful `proveCredential(id)` re-runs the full check — the credential
+exists, is not revoked, has not reached its expiry at the block time of
+inclusion, and the caller knows `(digest, salt, holderSecretKey)` behind the
+registered commitment — and then sets `verifiedCredentials[id] = true` and
+increments `totalCredentialProofs`. Nothing records that a proof for `id` has
+already been presented, and nothing refuses a second one. Asserted in
+`tests/credentials.test.ts` ("repeated proofs") and, for Level 2, in
+`tests/evidence.test.ts`; Level 1 has behaved the same since v0
+(`tests/compliance.test.ts`, "increments exactly once per verified claim").
+
+**What `verifiedCredentials[id] = true` means.** At some past block, a valid
+proof for `id` was included: the credential was live at that block and the
+submitter held the material. Revocation resets the flag to `false`; expiry
+does not rewrite it, which is why the verifier view derives *current* status
+as `revoked → expired → verified` against its own clock.
+
+**What it does not mean.** Not "proven exactly once", not "proven recently",
+not "proven to *you*". The flag is a registry-wide fact about the
+credential, not a receipt for a particular verifier or a particular
+presentation. `totalCredentialProofs` counts presentations, not distinct
+credentials. And, as everywhere in this project, a proof establishes
+knowledge of the committed material, not that the credential's content is
+true (§3.2).
+
+**Why there is no nullifier.** The product is a public registry status that
+a verifier reads without interacting with the holder. In that model a
+repeated proof is harmless: it re-establishes a fact that is already public
+and changes no state except the counter. A nullifier — a per-presentation
+value derived from the holder's secret, published so a second presentation
+can be recognised and refused — buys nothing here and would cost linkability
+(every presentation of `id` would publish a value tied to it) and a larger
+circuit.
+
+**When one would be required.** The moment a proof is meant to be consumed
+by a specific verifier as a one-time act — a ticket, a voucher, an
+authorisation that must not be replayed to a second party or a second time
+— the registry status is the wrong primitive. A single-use presentation
+needs a verifier-chosen challenge bound into the proof (so a captured proof
+cannot be replayed elsewhere) and a nullifier set on-chain or at the
+verifier (so it cannot be replayed twice). That is a different circuit and a
+different protocol between holder and verifier, not a change to this one,
+and it is out of scope for the Preprod MVP.
+
+## 7. Not addressed at this level
 
 Sybil resistance, revocation, key rotation, evidence storage and retention,
 selective disclosure to named verifiers, and the auditor-attestation binding

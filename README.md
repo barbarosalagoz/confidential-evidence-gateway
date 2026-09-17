@@ -475,12 +475,23 @@ circuit.
   history: the verifier view derives *current* status from
   `revoked → expired → verified` using its own clock, and the CLI/web
   verifier print exactly that derivation.
+- A holder can present the same credential again and again: proofs are
+  **repeatable by design**, there is no nullifier, and `totalCredentialProofs`
+  counts presentations. Why that is the right semantics for a public
+  registry status, and when a single-use presentation would need a
+  challenge and a nullifier instead, is in
+  [`docs/THREAT_MODEL.md` §6](docs/THREAT_MODEL.md#6-level-3-proofs-are-repeatable-by-design).
 - Block time carries the node's declared error bound
   (`secondsSinceEpochErr`); expiry precision is seconds, accuracy is the
   chain's.
-- The issuer key is held in a local file (CLI) and, for the browser demo,
-  imported into unencrypted `localStorage`. A production issuer would keep it
-  in an HSM-backed signer; the contract does not care where it lives.
+- The issuer key is held in a local file (CLI). The browser demo takes it
+  pasted per tab and keeps it in memory only — never in `localStorage`, gone
+  when the tab closes (`withSessionIssuerKey` in
+  `web/src/midnight/credentials-api.ts`; a key persisted by an earlier
+  version is removed on join). That path exists for the demo; production
+  issuance runs from the CLI with the key file on disk, and the production
+  target is an HSM-backed signer. The contract does not care where the key
+  lives.
 - The demo runs issuer and holder in one browser profile, so their private
   stores coexist; in reality the issuer hands `(content, salt)` to the holder
   out-of-band and never learns the holder's secret key (only the public key).
@@ -491,8 +502,9 @@ circuit.
 ### Using Level 3
 
 Web (Preprod, Lace on Chrome): open the live demo → connect → **Level 3** →
-join the registry (address pre-filled). Issuer: import the issuer secret key
-(from the deployer's `.credentials-issuer.preprod.key`), enter the holder's
+join the registry (address pre-filled). Issuer: paste the issuer secret key
+(from the deployer's `.credentials-issuer.preprod.key`; it stays in the tab's
+memory and must be pasted again after a reload), enter the holder's
 public key (Holder panel → *Create / load holder key*), type, expiry, and the
 confidential content → **Issue**. Hand the displayed content + salt to the
 holder → Holder: **Store material** → **Prove credential**. Verifier: **Read
@@ -509,8 +521,8 @@ npm run credentials -- --network preprod revoke --credential 7001
 npm run verify:credentials -- --network preprod        # observer view, no wallet
 ```
 
-Tests: `npm test` (Level 1–3 contract suites, 52 tests) and
-`npm test --prefix web` (app tests, 39). CI runs both on every push.
+Tests: `npm test` (Level 1–3 contract suites, 57 tests) and
+`npm test --prefix web` (app tests, 49). CI runs both on every push.
 
 ### What we learned building Level 3
 
@@ -769,6 +781,7 @@ tests/                          Vitest suite (simulator + privacy scans)
 scripts/e2e-check.ts            on-chain smoke check
 docs/THREAT_MODEL.md            actors, trust assumptions, known limits
 docs/CRYPTOGRAPHY.md            what is used; why it is not post-quantum
+docs/ROADMAP.md                 deferred from the Preprod MVP: encrypted web private state, live Preprod E2E in CI
 SECURITY.md                     reporting, scope, secret handling
 .github/workflows/ci.yml        compile + test + secret hygiene
 ```
@@ -829,6 +842,10 @@ reproduces the single copy.
   quantum-safety claim; it documents how the architecture keeps a
   crypto-agility boundary so the future off-chain evidence layer can adopt
   NIST PQC (ML-KEM, ML-DSA) without redesigning the contract.
+- [docs/ROADMAP.md](docs/ROADMAP.md) — the two production-readiness items
+  deferred from the Preprod MVP (encrypted browser private state; a live
+  Preprod end-to-end job in CI), each with what it needs and why it waits.
+  `npm run test:e2e` exists today and is run manually.
 
 The most important limitation, stated up front: the circuit proves *"the value
 I was given is ≥ the threshold"*, not *"my real-world metric is ≥ the

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { NETWORK_ID, defaultCredentialsDeployment } from '../config';
 import type { WalletSession } from '../midnight/wallet';
 import { buildProviders, DEFAULT_LOCAL_PROOF_SERVER, type ProvingMode } from '../midnight/providers';
+import { remoteProverWarning, type ProverInfo } from '../midnight/prover-locality';
 import { describeError } from '../midnight/errors';
 import { CredentialsApi, type CredentialRegistryState } from '../midnight/credentials-api';
 import { fetchCredentialPublicState, type VerifierSnapshot } from '../midnight/auditor';
@@ -33,6 +34,7 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
     }
   });
   const [api, setApi] = useState<CredentialsApi | null>(null);
+  const [prover, setProver] = useState<ProverInfo | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [local, setLocal] = useState<CredentialPrivateState>({ credentials: {} });
   const [liveState, setLiveState] = useState<CredentialRegistryState | null>(null);
@@ -64,10 +66,31 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
   // Drop the joined contract when the wallet disconnects.
   useEffect(() => {
     if (!session) {
+      api?.clearIssuerKey();
+      setIssuerPk(null);
       setApi(null);
+      setProver(null);
       setLiveState(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
+
+  // The issuer key lives in this tab's memory only: wipe it when the tab is
+  // closed or navigated away (pagehide fires on both, and on bfcache entry).
+  useEffect(() => {
+    if (!api) return;
+    const wipe = () => {
+      api.clearIssuerKey();
+      setIssuerPk(null);
+    };
+    window.addEventListener('pagehide', wipe);
+    window.addEventListener('beforeunload', wipe);
+    return () => {
+      window.removeEventListener('pagehide', wipe);
+      window.removeEventListener('beforeunload', wipe);
+      wipe();
+    };
+  }, [api]);
 
   useEffect(() => {
     if (!api) return;
@@ -111,9 +134,13 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
       });
       const joined = await CredentialsApi.join(providers, address, NETWORK_ID);
       setApi(joined);
-      const state = await joined.localState();
-      setLocal(state);
-      if (state.issuerSecretKeyHex) setIssuerPk(await joined.importIssuerKey(state.issuerSecretKeyHex));
+      setProver(providers.prover);
+      const warning = remoteProverWarning(providers.prover);
+      if (warning) addLog(warning, 'err');
+      setLocal(await joined.localState());
+      if (joined.removedPersistedIssuerKey) {
+        addLog('Removed an issuer key that an earlier version of this app had persisted in localStorage. Paste it again to act as issuer; it now stays in memory only.');
+      }
       addLog(`Joined credentials registry ${address.slice(0, 20)}…`, 'ok');
     });
 
@@ -123,8 +150,7 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
       const pk = await api.importIssuerKey(issuerKeyInput);
       setIssuerPk(pk);
       setIssuerKeyInput('');
-      await refreshLocal(api);
-      addLog(`Issuer key imported (kept in localStorage). Derived pk ${pk.slice(0, 16)}…`, 'ok');
+      addLog(`Issuer key held in this tab's memory only — never written to storage; gone when the tab closes. Derived pk ${pk.slice(0, 16)}…`, 'ok');
     });
 
   const issue = () =>
@@ -255,14 +281,25 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
         </section>
       )}
 
+      {api && prover && remoteProverWarning(prover) && (
+        <p className="note" style={{ borderLeftColor: 'var(--err)', marginBottom: 18 }} data-testid="remote-prover-warning">
+          {remoteProverWarning(prover)}
+        </p>
+      )}
+
       <div className="columns three">
         {/* ── Issuer ─────────────────────────────────────────────── */}
         <section className="panel">
           <h2><span className={`status-dot ${issuerPk ? 'on' : 'off'}`} />Issuer</h2>
           <p className="sub">Registers and revokes credentials. Authority = knowing the issuer secret key.</p>
+          <div className="note" data-testid="issuer-demo-notice">
+            Demo path only. The pasted key is held in this tab's memory and discarded when the tab closes; it is never
+            written to storage. Production issuance runs from the CLI (<code>npm run credentials -- issue</code>) with the
+            key file on disk; the production target is an HSM-backed signer.
+          </div>
           {api && !issuerPk && (
             <>
-              <label>Issuer secret key (from the deploy's key file)</label>
+              <label>Issuer secret key (from the deploy's key file — this tab only)</label>
               <input type="text" value={issuerKeyInput} onChange={(e) => setIssuerKeyInput(e.target.value)} placeholder="64 hex chars" />
               <div className="row"><button className="secondary" onClick={importIssuer} disabled={busy !== null}>Import issuer key</button></div>
             </>
@@ -350,6 +387,10 @@ export function CredentialsView({ session, addLog }: { session: WalletSession | 
         <section className="panel">
           <h2><span className="status-dot on" />Verifier</h2>
           <p className="sub">Public state only — no wallet. Status is derived from revoked/expiry/verified plus this clock.</p>
+          <p className="sub" data-testid="proof-scope-note">
+            A valid proof shows the submitter knew (digest, salt, holder key) behind the commitment — it does not establish
+            that the content is true, nor that the digest hashes a real document.
+          </p>
           <label>Credentials registry address</label>
           <input type="text" value={verifierAddress} onChange={(e) => setVerifierAddress(e.target.value)} placeholder="contract address…" />
           <div className="row">

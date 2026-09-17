@@ -112,6 +112,67 @@ describe('prove-valid', () => {
   });
 });
 
+// Repeatable by design (docs/THREAT_MODEL.md §6): there is no nullifier, so
+// the same credential can be presented again and again. Each presentation
+// re-runs the full check and counts once; the flag stays true; nothing else
+// about the public state moves. Same pattern as Level 1's
+// "increments exactly once per verified claim".
+describe('repeated proofs', () => {
+  it('the same holder presents the same credential three times: counter 1, 2, 3; flag stays true', async () => {
+    const sim = await issued();
+    sim.setPrivateState(holderState);
+
+    expect(sim.ledger.totalCredentialProofs).toBe(0n);
+    sim.proveCredential(CRED);
+    expect(sim.ledger.totalCredentialProofs).toBe(1n);
+    sim.proveCredential(CRED);
+    expect(sim.ledger.totalCredentialProofs).toBe(2n);
+    sim.proveCredential(CRED);
+    expect(sim.ledger.totalCredentialProofs).toBe(3n);
+    expect(sim.ledger.verifiedCredentials.lookup(CRED)).toBe(true);
+  });
+
+  it('a repeat leaves everything but the counter untouched, and the private state unchanged', async () => {
+    const sim = await issued();
+    sim.setPrivateState(holderState);
+    sim.proveCredential(CRED);
+    const commitment = bytesToHex(sim.ledger.credentialCommitments.lookup(CRED));
+    const expiry = sim.ledger.credentialExpiry.lookup(CRED);
+    const typeId = sim.ledger.credentialTypes.lookup(CRED);
+
+    sim.proveCredential(CRED);
+
+    expect(bytesToHex(sim.ledger.credentialCommitments.lookup(CRED))).toBe(commitment);
+    expect(sim.ledger.credentialExpiry.lookup(CRED)).toBe(expiry);
+    expect(sim.ledger.credentialTypes.lookup(CRED)).toBe(typeId);
+    expect(sim.ledger.revokedCredentials.member(CRED)).toBe(false);
+    expect(sim.ledger.verifiedCredentials.lookup(CRED)).toBe(true);
+    expect(sim.ledger.totalCredentialProofs).toBe(2n);
+    expect(sim.privateState).toEqual(holderState);
+  });
+
+  it('a repeat is still subject to every check: it fails after revocation and after expiry', async () => {
+    const sim = await issued();
+    sim.setPrivateState(holderState);
+    sim.proveCredential(CRED);
+    sim.proveCredential(CRED);
+    expect(sim.ledger.totalCredentialProofs).toBe(2n);
+
+    sim.setBlockTime(Number(EXPIRY));
+    expect(() => sim.proveCredential(CRED)).toThrow(/expired/);
+    sim.setBlockTime(NOW);
+    sim.proveCredential(CRED); // the clock moving back restores a live credential in the simulator
+    expect(sim.ledger.totalCredentialProofs).toBe(3n);
+
+    sim.setPrivateState(issuerState);
+    sim.revokeCredential(CRED);
+    sim.setPrivateState(holderState);
+    expect(() => sim.proveCredential(CRED)).toThrow(/revoked/);
+    expect(sim.ledger.totalCredentialProofs).toBe(3n);
+    expect(sim.ledger.verifiedCredentials.lookup(CRED)).toBe(false);
+  });
+});
+
 describe('prove-fails', () => {
   it('after revocation', async () => {
     const sim = await issued();

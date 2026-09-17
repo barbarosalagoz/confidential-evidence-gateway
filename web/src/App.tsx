@@ -287,6 +287,10 @@ export default function App() {
           <section className="panel">
             <h2><span className="status-dot on" />Auditor view</h2>
             <p className="sub">No wallet, no connection — the public ledger from the indexer, exactly what any observer sees.</p>
+            <p className="sub" data-testid="proof-scope-note">
+              A proven control shows that the prover knew the committed (digest, salt) pair — not that the digest is really
+              the hash of a document, nor that the document is true.
+            </p>
             <label>Registry address to audit</label>
             <input type="text" value={auditorAddress} onChange={(e) => setAuditorAddress(e.target.value)} placeholder="contract address…" />
             <div className="row">
